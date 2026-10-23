@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PCdex — Arma tu PC con inteligencia</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="public/logo-pcdex-icon.png">
+<link rel="apple-touch-icon" href="public/logo-pcdexfavicon.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="css/style-dark.css">
+</head>
+<body>
+ 
+<canvas id="particles"></canvas>
+ 
+<!-- NAV -->
+<nav id="navbar">
+  <div class="container nav-inner">
+    <a href="#" class="logo">
+    <img src="public/logo-pcdexnav.png" alt="PCdex">
+  </a>
+    <ul class="nav-links">
+      <li><a href="#como-funciona">¿Cómo funciona?</a></li>
+      <li><a href="#beneficios">Beneficios</a></li>
+      <li><a href="#testimonios">Testimonios</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+    <button class="btn-primary nav-cta" onclick="document.getElementById('registro').scrollIntoView({ behavior: 'smooth' })" >Comenzar gratis</button>
+    
+  </div>
+</nav>
+ 
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <div class="hero-orb hero-orb-3"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <h1 class="reveal reveal-delay-1">
+          Arma tu PC<br>a tu manera <br><span class="accent-word">y a tu alcance</span>
+        </h1>
+        <p class="reveal reveal-delay-2">PCdex analiza tu presupuesto, tus necesidades y tu nivel técnico para recomendarte los componentes exactos, compatibles y al mejor precio informandote en el proceso.</p>
+        <div class="hero-stats reveal reveal-delay-4">
+          <div><div class="stat-num">500+</div><div class="stat-label">Componentes en catálogo</div></div>
+          <div><div class="stat-num">98%</div><div class="stat-label">Compatibilidad garantizada</div></div>
+          <div><div class="stat-num">4</div><div class="stat-label">Perfiles de uso cubiertos</div></div>
+        </div>
+      </div>
+      <div class="reveal reveal-delay-2" style="position:relative">
+        <div class="terminal" style="position:relative">
+          <div class="terminal-bar">
+            <span class="dot r"></span>
+            <span class="dot y"></span>
+            <span class="dot g"></span>
+            <span class="terminal-title">pcdex — recomendación IA</span>
+          </div>
+          <div class="terminal-body">
+            <div class="t-line"><span class="t-prompt">❯</span> pcdex <span class="t-key">--uso</span> <span class="t-val">gaming</span> <span class="t-key">--presupuesto</span> <span class="t-val">2500000</span></div>
+            <div class="t-line"><span class="t-dim">  Analizando requerimientos...</span></div>
+            <div class="t-line">&nbsp;</div>
+            <div class="t-line"><span class="t-out">  ✔ Procesador  →</span> AMD Ryzen 5 7600X</div>
+            <div class="t-line"><span class="t-out">  ✔ Tarjeta madre →</span> MSI MAG B650 Tomahawk</div>
+            <div class="t-line"><span class="t-out">  ✔ GPU          →</span> RX 7600 8GB GDDR6</div>
+            <div class="t-line"><span class="t-out">  ✔ RAM          →</span> 16 GB DDR5 5200 MHz</div>
+            <div class="t-line"><span class="t-out">  ✔ Almacen.     →</span> SSD NVMe 500 GB</div>
+            <div class="t-line"><span class="t-out">  ✔ Fuente       →</span> Corsair 650W 80+ Bronze</div>
+            <div class="t-line">&nbsp;</div>
+            <div class="t-line"><span class="t-match">  ⚡ Compatibilidad: TOTAL · Score: 97/100</span></div>
+            <div class="t-line"><span class="t-price">  💰 Total estimado: $2.487.000 COP</span></div>
+            <div class="t-line">&nbsp;</div>
+            <div class="t-line"><span class="t-prompt">❯</span> <span class="cursor"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- VALUE PROP -->
+<section class="section">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="tag">Propuesta de valor</span>
+      <h2>¿Por qué PCdex?</h2>
+      <p>Dejá de perder horas comparando specs en foros. PCdex hace el trabajo duro por vos.</p>
+    </div>
+    <div class="value-grid">
+      <div class="value-card reveal">
+        <span class="value-icon">🤖</span>
+        <h3>IA que entiende tu caso</h3>
+        <p>No es un filtro genérico. La IA considera tu presupuesto, el uso que le vas a dar al equipo y tu nivel de conocimiento técnico para darte la recomendación más precisa.</p>
+      </div>
+      <div class="value-card reveal reveal-delay-1">
+        <span class="value-icon">🔗</span>
+        <h3>Compatibilidad verificada</h3>
+        <p>Cada build recomendada es revisada automáticamente para asegurar que todos los componentes funcionen juntos: socket, TDP, velocidad de RAM, formato de fuente y más.</p>
+      </div>
+      <div class="value-card reveal reveal-delay-2">
+        <span class="value-icon">🛒</span>
+        <h3>Links directos de compra</h3>
+        <p>PCdex conecta con tiendas como Amazon y MercadoLibre para mostrarte dónde conseguir cada componente al mejor precio. Sin pagos internos, sin complicaciones.</p>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- HOW IT WORKS -->
+<section class="section howit" id="como-funciona">
+  <div class="container" style="position:relative;z-index:1">
+    <div class="section-header reveal">
+      <span class="tag" style="background:rgba(37,99,235,.15);color:#7dd3fc;border:1px solid rgba(37,99,235,.25)">Proceso</span>
+      <h2>¿Cómo funciona?</h2>
+      <p>Cuatro pasos para pasar de "no sé nada de computadores" a tener tu build lista.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">PASO 01</div>
+        <div class="step-icon-wrap">🎯</div>
+        <h3>Contanos qué necesitás</h3>
+        <p>¿Gaming, diseño, programación u oficina? Ingresá tu presupuesto y el uso que le darás al equipo.</p>
+      </div>
+      <div class="step reveal reveal-delay-1">
+        <div class="step-num">PASO 02</div>
+        <div class="step-icon-wrap">⚡</div>
+        <h3>La IA analiza opciones</h3>
+        <p>El motor evalúa cientos de combinaciones compatibles, filtra por disponibilidad y precio, y selecciona las mejores para tu caso.</p>
+      </div>
+      <div class="step reveal reveal-delay-2">
+        <div class="step-num">PASO 03</div>
+        <div class="step-icon-wrap">📋</div>
+        <h3>Recibís tu build personalizada</h3>
+        <p>Obtenés una lista clara con cada componente, sus specs, el porqué de cada elección y el score de compatibilidad.</p>
+      </div>
+      <div class="step reveal reveal-delay-3">
+        <div class="step-num">PASO 04</div>
+        <div class="step-icon-wrap">🛍️</div>
+        <h3>Comprás donde quieras</h3>
+        <p>PCdex te redirige a tiendas autorizadas con los mejores precios actualizados. Elegís y comprás sin salir del flujo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- BENEFITS -->
+<section class="section" id="beneficios">
+  <div class="container">
+    <div class="benefits-grid">
+      <div class="reveal">
+        <span class="tag">Beneficios</span>
+        <h2 style="font-size:clamp(1.8rem,3.5vw,2.4rem);font-weight:700;letter-spacing:-.02em;margin-top:14px;margin-bottom:36px;">Todo lo que necesitás<br>en un solo lugar</h2>
+        <div class="benefit-list">
+          <div class="benefit-item">
+            <div class="benefit-check">✓</div>
+            <div><h4>Acceso 24/7 desde cualquier dispositivo</h4><p>La plataforma es 100% web y responsiva. Desde el celular o el computador, siempre disponible.</p></div>
+          </div>
+          <div class="benefit-item">
+            <div class="benefit-check">✓</div>
+            <div><h4>Historial de recomendaciones</h4><p>Guardamos todas tus builds anteriores para que puedas compararlas, ajustarlas o compartirlas.</p></div>
+          </div>
+          <div class="benefit-item">
+            <div class="benefit-check">✓</div>
+            <div><h4>Autenticación segura</h4><p>Login con Google OAuth y verificación en dos pasos (2FA). Tu cuenta, protegida.</p></div>
+          </div>
+          <div class="benefit-item">
+            <div class="benefit-check">✓</div>
+            <div><h4>Sin conocimientos técnicos previos</h4><p>PCdex fue diseñado para principiantes. La IA explica cada recomendación en lenguaje sencillo.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="benefit-visual reveal reveal-delay-2">
+        <div class="compat-title">VERIFICACIÓN DE COMPATIBILIDAD</div>
+        <div class="component-row">
+          <div class="component-left">
+            <span class="component-name">AMD Ryzen 5 7600X</span>
+            <span class="component-spec">Socket AM5 · 105W TDP</span>
+          </div>
+          <span class="compat-badge ok">✓ OK</span>
+        </div>
+        <div class="component-row">
+          <div class="component-left">
+            <span class="component-name">MSI MAG B650 Tomahawk</span>
+            <span class="component-spec">AM5 · DDR5 · PCIe 4.0</span>
+          </div>
+          <span class="compat-badge ok">✓ OK</span>
+        </div>
+        <div class="component-row">
+          <div class="component-left">
+            <span class="component-name">Corsair 550W 80+</span>
+            <span class="component-spec">ATX · Modular</span>
+          </div>
+          <span class="compat-badge warn">⚠ Revisar</span>
+        </div>
+        <div class="component-row">
+          <div class="component-left">
+            <span class="component-name">Kingston Fury 16GB DDR5</span>
+            <span class="component-spec">5200 MHz · CL40</span>
+          </div>
+          <span class="compat-badge ok">✓ OK</span>
+        </div>
+        <div class="total-row">
+          <span class="total-label">Total estimado</span>
+          <span class="total-price">$2.487.000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- TESTIMONIALS -->
+<section class="section testimonials" id="testimonios">
+  <div class="container" style="position:relative;z-index:1">
+    <div class="section-header reveal">
+      <h2>Lo que dicen quienes ya lo usaron</h2>
+      <p>Usuarios reales que armaron su PC con la ayuda de PCdex.</p>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testi-card reveal">
+        <div class="stars">★★★★★</div>
+        <blockquote>No tenía ni idea de qué comprar. PCdex me generó una build completa en menos de dos minutos y me explicó por qué cada componente tenía sentido para gaming. Me ahorró horas de investigación.</blockquote>
+        <div class="testi-author">
+          <div class="avatar av1">CM</div>
+          <div><div class="author-name">Carlos M.</div><div class="author-role">Gamer principiante · Medellín</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal reveal-delay-1">
+        <div class="stars">★★★★★</div>
+        <blockquote>Soy diseñadora gráfica y necesitaba un equipo para edición de video sin gastar de más. PCdex entendió exactamente mis necesidades y me recomendó una configuración equilibrada dentro de mi presupuesto.</blockquote>
+        <div class="testi-author">
+          <div class="avatar av2">LV</div>
+          <div><div class="author-name">Laura V.</div><div class="author-role">Diseñadora gráfica · Bogotá</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal reveal-delay-2">
+        <div class="stars">★★★★☆</div>
+        <blockquote>Lo que más me gustó fue la verificación de compatibilidad. Antes siempre tenía miedo de comprar algo que no funcionara junto. Con PCdex eso dejó de ser un problema.</blockquote>
+        <div class="testi-author">
+          <div class="avatar av3">JR</div>
+          <div><div class="author-name">Juan R.</div><div class="author-role">Estudiante de sistemas · Cali</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+ 
+<!-- FORM -->
+<section class="section cta-form-section" id="registro">
+  <div class="cta-glow cta-glow-1"></div>
+  <div class="cta-glow cta-glow-2"></div>
+  <div class="container section-inner">
+    <div class="reveal">
+      <span class="tag" style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.15);margin-bottom:20px">Acceso anticipado </span>
+      <h2>Empezá a armar tu PC hoy</h2>
+      <p>Registrate y recibí recomendaciones personalizadas.</p>
+      <div class="form-row">
+        <input type="text" placeholder="Tu nombre" />
+        <input type="email" placeholder="Correo electrónico" />
+        <button class="btn-white" >Registrarme →</button>
+      </div>
+      <p class="form-note">Al registrarte aceptás nuestras políticas de privacidad.</p>
+    </div>
+  </div>
+</section>
+ 
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="tag">FAQ</span>
+      <h2>Preguntas frecuentes</h2>
+      <p>Todo lo que necesitás saber antes de empezar.</p>
+    </div>
+    <div class="faq-list">
+      <details class="reveal">
+        <summary>¿PCdex es gratuito?</summary>
+        <p>Sí. PCdex está disponible sin costo durante su etapa de lanzamiento. El acceso básico con recomendaciones y verificación de compatibilidad es y seguirá siendo gratuito.</p>
+      </details>
+      <details class="reveal reveal-delay-1">
+        <summary>¿Maneja pagos o ventas de componentes?</summary>
+        <p>No. PCdex no procesa pagos ni vende componentes directamente. La plataforma genera enlaces externos hacia tiendas autorizadas como Amazon y MercadoLibre donde podés completar tu compra de forma segura.</p>
+      </details>
+      <details class="reveal reveal-delay-2">
+        <summary>¿Cómo garantizan la compatibilidad de los componentes?</summary>
+        <p>El motor de recomendación verifica automáticamente socket, TDP, tipo y velocidad de RAM, estándar PCIe, formato de fuente y factor de forma del gabinete. Cada build tiene un score de compatibilidad que te indica el nivel de confianza de la combinación.</p>
+      </details>
+      <details class="reveal reveal-delay-3">
+        <summary>¿Puedo usarlo si no sé nada de hardware?</summary>
+        <p>¡Exactamente para eso fue diseñado! No necesitás conocimientos previos. PCdex te pregunta para qué vas a usar el equipo y cuánto querés gastar. El resto lo hace la IA, explicando cada decisión en lenguaje claro.</p>
+      </details>
+      <details class="reveal">
+        <summary>¿Los precios están actualizados?</summary>
+        <p>PCdex se sincroniza periódicamente con las APIs de las tiendas asociadas para mantener los precios y la disponibilidad al día. Te recomendamos verificar el precio final en la tienda antes de comprar, ya que puede variar.</p>
+      </details>
+      <details class="reveal reveal-delay-1">
+        <summary>¿Mis datos están seguros?</summary>
+        <p>Sí. Usamos autenticación con Google OAuth y doble factor (2FA con Google Authenticator). La plataforma implementa JWT, rate limiting y reCAPTCHA. Tu información no se comparte con terceros.</p>
+      </details>
+    </div>
+  </div>
+</section>
+ 
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="footer-logo">PCdex</div>
+        <p>Sistema inteligente de recomendación y gestión de componentes para computadores de escritorio. Proyecto académico SENA – CTMA.</p>
+        <div class="footer-badge"><span class="badge-dot"></span> Sistema activo · v1.0</div>
+      </div>
+      <!-- <div class="footer-col">
+        <h4>Plataforma</h4>
+        <a href="#">Recomendaciones</a>
+        <a href="#">Catálogo</a>
+        <a href="#">Historial</a>
+        <a href="#">Tiendas aliadas</a>
+      </div>
+      <div class="footer-col">
+        <h4>Proyecto</h4>
+        <a href="#">Sobre PCdex</a>
+        <a href="#">Equipo</a>
+        <a href="#">Documentación</a>
+        <a href="#">GitHub</a>
+      </div> -->
+      <div class="footer-col">
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 PCdex · Grupo PCdex · SENA CTMA</p>
+      <p>Hecho en Colombia</p>
+    </div>
+  </div>
+</footer>
+ 
+<script src="main.js"></script>
+
+</body>
+</html>

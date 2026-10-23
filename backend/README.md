@@ -94,4 +94,4 @@ La API proporciona datos y funcionalidades para PCdex. No procesa ventas ni pago
 
 Los comandos definitivos se documentarán después de revisar los scripts de `package.json`, la configuración de Prisma y los servicios de Docker.
 
-No se deben ejecutar migraciones destructivas ni eliminar volúmenes de la base de datos sin comprobar previamente qué información contienen.
+No se deben ejecutar migraciones destructivas ni eliminar volúmenes de la base de datos sin comprobar previamente qué información contienen. 

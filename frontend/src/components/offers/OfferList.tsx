@@ -1,0 +1,4 @@
+import { ArrowUpRight, ShoppingBag } from 'lucide-react'
+import type { StoreOffer } from '../../types/hardware'
+import { formatCOP as currency } from '../../services/catalog'
+export default function OfferList({ offers, onInfo }: { offers: StoreOffer[]; onInfo: (message: string) => void }) { return <>{offers.map((offer, i) => <div className="store" key={offer.name}><div className="store-icon"><ShoppingBag size={20}/></div><div className="store-name"><strong>{offer.name}</strong><small>{offer.location} · Envío nacional</small></div><span className="stock">{offer.stock ? 'Stock demo' : 'Por encargo'}</span><div className="store-price">{currency(offer.price)}{i === 0 && <small>MEJOR PRECIO DEMO</small>}</div><button className="icon-button" aria-label={`Información de ${offer.name}`} onClick={() => onInfo(`${offer.name}: precio simulado de ${currency(offer.price)}. Esta demo no incluye enlaces de compra.`)}><ArrowUpRight size={18}/></button></div>)}</> }

@@ -1,0 +1,3 @@
+@import "tailwindcss";
+@theme { --color-surface: #0f141b; --color-electric: #00f2ff; --color-success: #00e599; }
+:root{font-family:'Segoe UI',Arial,sans-serif;color:#e9eef5;background:#0f141b;font-synthesis:none;-webkit-font-smoothing:antialiased;color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-width:360px}button{font:inherit;cursor:pointer}button,a{transition:all .2s}a{color:inherit;text-decoration:none}button:focus-visible,a:focus-visible{outline:2px solid #00f2ff;outline-offset:4px}button:hover{filter:brightness(1.15)}::selection{background:#00f2ff40}

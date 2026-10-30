@@ -1,0 +1,8 @@
+import { useState } from 'react'
+import type { CatalogComponent, DemoOffer } from '../../types/hardware'
+import { formatCOP } from '../../services/catalog'
+export default function ComparisonPage({items,offers}:{items:CatalogComponent[];offers:DemoOffer[]}) {
+ const [id,setId]=useState('');const [condition,setCondition]=useState('')
+ const rows=offers.filter(o=>(!id||o.componentId===id)&&(!condition||o.condition===condition)).sort((a,b)=>a.price-b.price)
+ return <main className="catalog-main"><div className="auth-step"><span/> RADAR DE OFERTAS</div><h1>Compara antes de elegir<span>.</span></h1><p className="muted">Tiendas de ejemplo, precios en COP y estado de conservación. Sin enlaces externos.</p><div className="module-filters"><label>Componente<select value={id} onChange={e=>setId(e.target.value)}><option value="">Todos los componentes</option>{items.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></label><label>Estado<select value={condition} onChange={e=>setCondition(e.target.value)}><option value="">Todos los estados</option>{['Nuevo','Usado','Reacondicionado'].map(c=><option key={c}>{c}</option>)}</select></label></div><div className="panel p-6"><span className="chip amber">PRECIOS Y STOCK SIMULADOS</span>{rows.map(o=><div className="store" key={o.id}><div className="store-name"><strong>{o.name}</strong><small>{items.find(i=>i.id===o.componentId)?.name??'Componente retirado'} · {o.location}</small></div><span className="chip">{o.condition}</span><span className={`chip ${o.stock?'green':'amber'}`}>{o.stock?'Stock demo':'Sin stock demo'}</span><div className="store-price">{formatCOP(o.price)}</div></div>)}{!rows.length&&<p className="muted" role="status">No hay ofertas para estos filtros.</p>}</div></main>
+}

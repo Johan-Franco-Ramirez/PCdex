@@ -5,7 +5,7 @@ services:
     container_name: pcdex-db
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "PcdexPassword2026!"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD}
     ports:
       - "1433:1433"
     volumes:
@@ -16,6 +16,12 @@ services:
   backend:
     build: ./backend
     container_name: pcdex-backend
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?Define DOCKER_DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?Define SESSION_SECRET}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Define TOTP_ENCRYPTION_KEY}
+      FRONTEND_ORIGIN: http://localhost
+      HOST: 0.0.0.0
     ports:
       - "3000:3000"
     depends_on:

@@ -1,0 +1,3 @@
+# Alias conservado para no mantener una configuración de backend JSON obsoleta.
+include:
+  - docker-compose.functional.yml

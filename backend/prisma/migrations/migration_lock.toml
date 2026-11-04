@@ -1,0 +1,2 @@
+# Identificador normalizado por el motor Prisma para SQL Server.
+provider = "mssql"

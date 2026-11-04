@@ -29,3 +29,5 @@ dist-ssr
 
 # Copia temporal para sincronizar con GitHub
 .pcdex-upload/
+playwright-report/
+test-results/

@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.NVarChar(60)
+  email        String     @unique @db.NVarChar(254)
+  username     String     @db.NVarChar(80)
+  passwordHash String     @db.NVarChar(300)
+  totpSecret   String?    @db.NVarChar(500)
+  totpEnabled  Boolean    @default(false)
+  lastTotpStep BigInt     @default(-1)
+  createdAt    DateTime   @default(now())
+  roles        UserRole[]
+  builds       PcBuild[]
+}
+
+model Role {
+  name  String     @id @db.NVarChar(20)
+  users UserRole[]
+}
+
+model UserRole {
+  userId   String @db.NVarChar(60)
+  roleName String @db.NVarChar(20)
+  user     User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role     Role   @relation(fields: [roleName], references: [name], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([userId, roleName])
+}
+
+model Session {
+  id        String   @id @db.NVarChar(200)
+  data      String   @db.NVarChar(Max)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model Category {
+  id         String      @id @db.NVarChar(30)
+  name       String      @db.NVarChar(80)
+  components Component[]
+}
+
+model Component {
+  id                 String           @id @db.NVarChar(60)
+  name               String           @db.NVarChar(300)
+  category           String           @db.NVarChar(30)
+  brand              String           @db.NVarChar(300)
+  model              String           @db.NVarChar(300)
+  description        String           @db.NVarChar(2000)
+  image              String?          @db.NVarChar(2000)
+  estimatedPrice     Decimal?         @db.Decimal(18, 2)
+  priceSource        String?          @db.NVarChar(300)
+  priceReferenceDate String?          @db.NVarChar(10)
+  priceKind          String           @db.NVarChar(20)
+  currency           String           @default("COP") @db.NVarChar(3)
+  active             Boolean          @default(true)
+  revision           Int              @default(1)
+  categoryRecord     Category         @relation(fields: [category], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cpu                CpuSpec?
+  gpu                GpuSpec?
+  motherboard        MotherboardSpec?
+  ram                RamSpec?
+  storage            StorageSpec?
+  psu                PsuSpec?
+  case               CaseSpec?
+  cooler             CoolerSpec?
+  details            BuildItem[]
+
+  @@index([category, active])
+}
+
+model PcBuild {
+  id            String      @id @default(uuid()) @db.NVarChar(60)
+  ownerId       String      @db.NVarChar(60)
+  name          String      @db.NVarChar(100)
+  mode          String      @db.NVarChar(20)
+  budget        Decimal     @db.Decimal(18, 2)
+  profile       String      @db.NVarChar(30)
+  total         Decimal     @db.Decimal(18, 2)
+  compatibility String      @db.NVarChar(Max)
+  warnings      String      @db.NVarChar(Max)
+  visibility    String      @default("private") @db.NVarChar(20)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  owner         User        @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  items         BuildItem[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model BuildItem {
+  buildId           String    @db.NVarChar(60)
+  componentId       String    @db.NVarChar(60)
+  category          String    @db.NVarChar(30)
+  priceSnapshot     Decimal?  @db.Decimal(18, 2)
+  componentSnapshot String    @db.NVarChar(Max)
+  build             PcBuild   @relation(fields: [buildId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  component         Component @relation(fields: [componentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([buildId, componentId])
+  @@unique([buildId, category])
+}
+
+model CoolerSpec {
+  componentId String    @id @db.NVarChar(60)
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  type        String?   @db.NVarChar(80)
+  sockets     String?   @db.NVarChar(2000)
+  heightMm    Float?
+}
+
+model CaseSpec {
+  componentId          String    @id @db.NVarChar(60)
+  component            Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  supportedFormFactors String?   @db.NVarChar(2000)
+  maxGpuLengthMm       Float?
+  maxCoolerHeightMm    Float?
+}
+
+model RamSpec {
+  componentId  String    @id @db.NVarChar(60)
+  component    Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  memoryType   String?   @db.NVarChar(80)
+  capacityGB   Float?
+  frequencyMHz Float?
+  modules      Int?
+}
+
+model CpuSpec {
+  componentId  String    @id @db.NVarChar(60)
+  component    Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  socket       String?   @db.NVarChar(80)
+  cores        Int?
+  threads      Int?
+  frequencyGHz Float?
+  tdp          Float?
+  generation   String?   @db.NVarChar(80)
+}
+
+model StorageSpec {
+  componentId String    @id @db.NVarChar(60)
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  type        String?   @db.NVarChar(80)
+  capacityGB  Float?
+  interface   String?   @db.NVarChar(80)
+}
+
+model MotherboardSpec {
+  componentId          String    @id @db.NVarChar(60)
+  component            Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  socket               String?   @db.NVarChar(80)
+  chipset              String?   @db.NVarChar(80)
+  supportedGenerations String?   @db.NVarChar(2000)
+  formFactor           String?   @db.NVarChar(80)
+  memoryType           String?   @db.NVarChar(80)
+  storageInterfaces    String?   @db.NVarChar(2000)
+}
+
+model PsuSpec {
+  componentId   String    @id @db.NVarChar(60)
+  component     Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  watts         Float?
+  certification String?   @db.NVarChar(80)
+}
+
+model GpuSpec {
+  componentId String    @id @db.NVarChar(60)
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vramGB      Float?
+  memoryType  String?   @db.NVarChar(80)
+  watts       Float?
+  lengthMm    Float?
+}

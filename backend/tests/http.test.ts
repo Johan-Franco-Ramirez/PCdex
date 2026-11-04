@@ -1,0 +1,12 @@
+import { after, before, test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { Server } from 'node:http';
+process.env.DATABASE_URL='sqlserver://127.0.0.1:1;database=pcdex_tests_no_connection;user=sa;password=unused;trustServerCertificate=true';
+let server:Server,base:string;
+before(async()=>{const {app}=await import('../src/app.js');await new Promise<void>(resolve=>{server=app.listen(0,'127.0.0.1',()=>resolve());});const address=server.address();if(!address||typeof address==='string')throw Error('No se pudo abrir puerto de prueba.');base=`http://127.0.0.1:${address.port}`;});
+after(async()=>{if(server)await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));const {prisma}=await import('../src/config/prisma.js');await prisma.$disconnect();});
+test('health es independiente de una conexión a SQL Server',async()=>{const response=await fetch(base+'/health');assert.equal(response.status,200);assert.equal((await response.json() as {status:string}).status,'ok');});
+test('catálogo rechaza filtros inválidos antes de consultar la BD',async()=>{const response=await fetch(base+'/api/componentes?limit=101');assert.equal(response.status,400);assert.equal((await response.json() as {error:{codigo:string}}).error.codigo,'ENTRADA_INVALIDA');});
+test('validar exige un arreglo de IDs y no admite especificaciones del cliente',async()=>{const response=await fetch(base+'/api/builds/validar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({componente_ids:['x'],tdp:0})});assert.equal(response.status,400);});
+test('generar rechaza presupuestos inválidos sin ejecutar consultas',async()=>{const response=await fetch(base+'/api/builds/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({presupuesto:-1,uso:'gaming'})});assert.equal(response.status,400);});
+test('JSON mal formado y rutas desconocidas tienen errores consistentes',async()=>{const response=await fetch(base+'/api/builds/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{'});assert.equal(response.status,400);assert.equal((await response.json() as {error:{codigo:string}}).error.codigo,'JSON_INVALIDO');assert.equal((await fetch(base+'/no-existe')).status,404);});

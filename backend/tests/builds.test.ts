@@ -1,0 +1,15 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Prisma } from '@prisma/client';
+import { fixture, fullBuild } from './fixtures.js';
+import { seleccionarBuild } from '../src/modules/builds/builds.algorithm.js';
+import { generarBodySchema } from '../src/modules/builds/builds.schemas.js';
+import { AppError } from '../src/shared/errors.js';
+const limits={maxNodos:10000,timeoutMs:10000};
+test('devuelve 8 piezas compatibles dentro del presupuesto exacto',async()=>{const r=await seleccionarBuild(fullBuild(),{presupuesto:80,uso:'gaming'},limits);assert.equal(r.componentes.length,8);assert.equal(r.total.toFixed(2),'80.00');assert.equal(r.compatibilidad.compatible,true);});
+test('encuentra alternativas cuando las piezas más baratas son incompatibles',async()=>{const b=fullBuild(),wrong=fixture('MOTHERBOARD','mala','1');wrong.placaMadre!.socket='LGA1700';const r=await seleccionarBuild([wrong,...b],{presupuesto:80,uso:'gaming'},limits);assert.equal(r.componentes.some(i=>i.id==='mala'),false);});
+test('gaming prioriza VRAM y ofimatica menor coste',async()=>{const b=fullBuild(),gpu=fixture('GPU','grande','15');gpu.tarjetaGrafica!.vram=new Prisma.Decimal(16);const gaming=await seleccionarBuild([...b,gpu],{presupuesto:100,uso:'gaming'},limits);assert.ok(gaming.componentes.some(i=>i.id==='grande'));const cheap=await seleccionarBuild([...b,gpu],{presupuesto:100,uso:'ofimatica'},limits);assert.equal(cheap.total.toFixed(2),'80.00');});
+test('no genera builds sin precio, ni alternativas fuera de presupuesto',async()=>{const b=fullBuild();b[0]!.precio=null;await assert.rejects(seleccionarBuild(b,{presupuesto:100,uso:'gaming'},limits),(e:unknown)=>e instanceof AppError&&e.code==='CATALOGO_INSUFICIENTE');await assert.rejects(seleccionarBuild(fullBuild(),{presupuesto:79,uso:'gaming'},limits),(e:unknown)=>e instanceof AppError&&e.code==='PRESUPUESTO_INSUFICIENTE');});
+test('devuelve error si el catálogo solo tiene conflictos',async()=>{const b=fullBuild();b.find(i=>i.fuentePoder)!.fuentePoder!.vatios=400;await assert.rejects(seleccionarBuild(b,{presupuesto:100,uso:'gaming'},limits),(e:unknown)=>e instanceof AppError&&e.code==='SIN_COMBINACION_COMPATIBLE');});
+test('límite de búsqueda no se interpreta como ausencia de combinaciones',async()=>{await assert.rejects(seleccionarBuild(fullBuild(),{presupuesto:100,uso:'gaming'},{...limits,maxNodos:1}),(e:unknown)=>e instanceof AppError&&e.status===503&&e.code==='BUSQUEDA_LIMITADA');});
+test('rechaza presupuesto NaN, negativo, fracciones de centavo y usos no admitidos',()=>{for(const body of [{presupuesto:-1,uso:'gaming'},{presupuesto:NaN,uso:'gaming'},{presupuesto:10.123,uso:'gaming'},{presupuesto:100,uso:'desconocido'},{presupuesto:'100',uso:'gaming'}])assert.equal(generarBodySchema.safeParse(body).success,false);});

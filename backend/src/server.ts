@@ -1,11 +1,9 @@
-import app from './app.js';
-import dotenv from 'dotenv';
-
-// Cargar variables de entorno desde el archivo .env
-dotenv.config();
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`[PCDex Backend]: Servidor ejecutándose exitosamente en el puerto ${PORT}`);
-});
+import { env } from './config/env.js';
+import { prisma } from './config/prisma.js';
+import { app } from './app.js';
+await prisma.$connect();
+const server=app.listen(env.PORT,()=>console.log(`PCdex API escuchando en el puerto ${env.PORT}`));
+let stopping=false;
+async function shutdown(){if(stopping)return;stopping=true;const timer=setTimeout(()=>process.exit(1),10000);timer.unref();server.close(async()=>{await prisma.$disconnect();clearTimeout(timer);process.exit(0);});}
+process.on('SIGTERM',()=>void shutdown());
+process.on('SIGINT',()=>void shutdown());

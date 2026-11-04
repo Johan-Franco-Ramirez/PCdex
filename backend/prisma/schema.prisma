@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Componente {
+  id              String          @id @db.NVarChar(100)
+  nombre          String          @db.NVarChar(300)
+  marca           String          @db.NVarChar(120)
+  categoria       String          @db.NVarChar(40)
+  // NULL significa sin cotización. Nunca usar 0 como precio desconocido.
+  precio          Decimal?        @db.Decimal(18, 2)
+  procesador      Procesador?
+  tarjetaGrafica  TarjetaGrafica?
+  placaMadre      PlacaMadre?
+  memoriaRAM      MemoriaRAM?
+  fuentePoder     FuentePoder?
+  almacenamiento Almacenamiento?
+  gabinete        Gabinete?
+  refrigeracion   Refrigeracion?
+
+  @@index([categoria, precio, id])
+  @@index([marca])
+}
+
+model Procesador {
+  componente_id String @id @db.NVarChar(100)
+  socket        String @db.NVarChar(60)
+  nucleos       Int
+  tdp           Int
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model TarjetaGrafica {
+  componente_id String @id @db.NVarChar(100)
+  vram          Decimal @db.Decimal(10, 2)
+  tdp           Int
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model PlacaMadre {
+  componente_id String @id @db.NVarChar(100)
+  socket        String @db.NVarChar(60)
+  tipo_ram      String @db.NVarChar(40)
+  formato       String @db.NVarChar(60)
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model MemoriaRAM {
+  componente_id String @id @db.NVarChar(100)
+  tipo          String @db.NVarChar(40)
+  capacidad     Int
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model FuentePoder {
+  componente_id String @id @db.NVarChar(100)
+  vatios        Int
+  certificacion String @db.NVarChar(100)
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model Almacenamiento {
+  componente_id String @id @db.NVarChar(100)
+  tipo          String @db.NVarChar(60)
+  capacidad     Int
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model Gabinete {
+  componente_id String @id @db.NVarChar(100)
+  formato       String @db.NVarChar(60)
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+model Refrigeracion {
+  componente_id String @id @db.NVarChar(100)
+  tipo          String @db.NVarChar(60)
+  tdp_soportado Int?
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}

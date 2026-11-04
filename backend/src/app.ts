@@ -1,20 +1,19 @@
-import express, { Application, Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
-
-const app: Application = express();
-
-// Middlewares globales esenciales
-app.use(cors());
-app.use(express.json());
-
-// Endpoint de salud (Health Check) - Vital para verificar disponibilidad y Docker
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'success',
-    project: 'PCdex API',
-    message: 'El backend de PCdex está operando correctamente',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-export default app;
+import { env } from './config/env.js';
+import { prisma } from './config/prisma.js';
+import { remoteRouter } from './modules/remote/remote.routes.js';
+import { catalogRouter } from './modules/catalog/catalog.routes.js';
+import { buildsRouter } from './modules/builds/builds.routes.js';
+import { errorHandler } from './shared/error-handler.js';
+export const app=express();
+app.disable('x-powered-by');
+app.use(cors({origin:env.CORS_ORIGIN,credentials:true}));
+app.use(express.json({limit:'32kb'}));
+app.get('/health',(_req,res)=>{res.json({status:'ok',service:'PCdex API'});});
+app.get('/health/ready',async(_req,res)=>{await prisma.$queryRaw`SELECT 1`;res.json({status:'ready'});});
+app.use('/api',remoteRouter);
+app.use('/api/componentes',catalogRouter);
+app.use('/api/builds',buildsRouter);
+app.use((_req,res)=>{res.status(404).json({error:{codigo:'RUTA_NO_ENCONTRADA',mensaje:'La ruta solicitada no existe.',message:'La ruta solicitada no existe.'}});});
+app.use(errorHandler);

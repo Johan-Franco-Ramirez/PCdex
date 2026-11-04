@@ -1,0 +1,10 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { extraerEntradas, mapearOpenDB } from '../prisma/buildcores.mapper.js';
+const cpu={opendb_id:'test-cpu',metadata:{name:'Fixture CPU',manufacturer:'Fixture'},socket:'AM5',cores:{total:8},specifications:{tdp:100}};
+test('mapea campos reales de OpenDB sin inventar precio',()=>{const r=mapearOpenDB({categoria:'CPU',data:cpu});assert.equal(r.base.precio,undefined);assert.equal(r.base.id,cpu.opendb_id);assert.equal(r.tecnico.procesador?.create?.tdp,100);});
+test('solo acepta cotizaciones explícitas COP y preserva decimales',()=>{const r=mapearOpenDB({categoria:'CPU',data:cpu},{'test-cpu':{precio:'1900000.25',moneda:'COP'}});assert.equal(r.base.precio?.toFixed(2),'1900000.25');assert.throws(()=>mapearOpenDB({categoria:'CPU',data:cpu},{'test-cpu':{precio:100,moneda:'USD'}}));});
+test('rechaza datos técnicos faltantes y precios inválidos',()=>{assert.throws(()=>mapearOpenDB({categoria:'CPU',data:{...cpu,cores:null}}));assert.throws(()=>mapearOpenDB({categoria:'CPU',data:cpu},{'test-cpu':{precio:0,moneda:'COP'}}));});
+test('capacidad RAM representa el kit completo',()=>{const data={opendb_id:'ram',metadata:cpu.metadata,ram_type:'DDR5',modules:{quantity:2,capacity_gb:16}};assert.equal(mapearOpenDB({categoria:'RAM',data}).tecnico.memoriaRAM?.create?.capacidad,32);assert.equal(mapearOpenDB({categoria:'RAM',data:{...data,capacity:64}}).tecnico.memoriaRAM?.create?.capacidad,64);});
+test('no infiere TDP soportado de la refrigeración',()=>{const r=mapearOpenDB({categoria:'CPUCooler',data:{opendb_id:'cooler',metadata:cpu.metadata,water_cooled:false}});assert.equal(r.tecnico.refrigeracion?.create?.tdp_soportado,null);});
+test('acepta agrupación por categoría y envoltorios',()=>{const a=extraerEntradas({CPU:[cpu]});assert.equal(a[0]?.categoria,'CPU');const b=extraerEntradas({data:[{category:'CPU',data:cpu}]});assert.equal(b[0]?.data.opendb_id,'test-cpu');assert.throws(()=>extraerEntradas({unsupported:'data'}));});

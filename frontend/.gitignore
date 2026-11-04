@@ -28,4 +28,4 @@ dist-ssr
 !.env.example
 
 # Copia temporal para sincronizar con GitHub
-.pcdex-upload/
+.pcdex-*/

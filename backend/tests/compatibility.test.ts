@@ -1,0 +1,21 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Prisma } from '@prisma/client';
+import { fullBuild } from './fixtures.js';
+import { evaluarComponentes } from '../src/modules/compatibility/compatibility.rules.js';
+import { catalogQuerySchema } from '../src/modules/catalog/catalog.schemas.js';
+const evaluate=(items:ReturnType<typeof fullBuild>,ids=items.map(i=>i.id))=>evaluarComponentes(items,ids);
+test('acepta el límite exacto CPU + GPU + 100 = 80% PSU',()=>{assert.equal(evaluate(fullBuild()).compatible,true);});
+test('rechaza un vatio por encima del límite sin redondear',()=>{const b=fullBuild();b.find(i=>i.procesador)!.procesador!.tdp++;assert.equal(evaluate(b).compatible,false);});
+test('rechaza socket y tipo de RAM incompatibles',()=>{const b=fullBuild();b.find(i=>i.placaMadre)!.placaMadre!.socket='LGA1700';b.find(i=>i.memoriaRAM)!.memoriaRAM!.tipo='DDR4';assert.equal(evaluate(b).errores.filter(e=>e.includes('incompatible')).length,2);});
+test('rechaza IDs desconocidos y duplicados',()=>{const b=fullBuild();const r=evaluate(b,[...b.map(i=>i.id),'CPU','inexistente']);assert.equal(r.compatible,false);assert.ok(r.errores.some(e=>e.includes('No existe')));assert.ok(r.errores.some(e=>e.includes('repetidos')));});
+test('rechaza una segunda pieza de la misma categoría y una build incompleta',()=>{const b=fullBuild();assert.equal(evaluate(b.slice(1)).compatible,false);assert.equal(evaluate([...b,{...b[0]!,id:'otro'}]).compatible,false);});
+test('rechaza ficha relacional ausente o ajena a su categoría',()=>{const b=fullBuild();b[0]!.procesador=null;assert.equal(evaluate(b).compatible,false);});
+test('precio desconocido no inventa cotización ni bloquea compatibilidad eléctrica',()=>{const b=fullBuild();b[0]!.precio=null;const r=evaluate(b);assert.equal(r.compatible,true);assert.ok(r.advertencias.some(a=>a.includes('cotización')));});
+test('TDP de cooler desconocido advierte; TDP insuficiente rechaza',()=>{const b=fullBuild();const cooler=b.find(i=>i.refrigeracion)!.refrigeracion!;cooler.tdp_soportado=null;assert.ok(evaluate(b).advertencias.some(a=>a.includes('refrigeración')));cooler.tdp_soportado=99;assert.equal(evaluate(b).compatible,false);});
+test('valida consultas, límites, rangos y valores monetarios',()=>{
+ assert.deepEqual(catalogQuerySchema.parse({}),{page:1,limit:20});
+ for(const q of [{page:'0'},{page:'1.1'},{limit:'101'},{categoria:'inventada'},{precio_min:'20',precio_max:'10'},{precio_max:'NaN'},{marca:['AMD']},{limit:'Infinity'}])assert.equal(catalogQuerySchema.safeParse(q).success,false);
+ assert.equal(catalogQuerySchema.parse({precio_min:'0.10',precio_max:'9.99'}).precio_min,'0.10');
+});
+test('los importes conservan precisión decimal',()=>{assert.equal(new Prisma.Decimal('0.10').add('0.20').toFixed(2),'0.30');});

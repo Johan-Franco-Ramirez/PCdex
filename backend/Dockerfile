@@ -1,13 +1,22 @@
-FROM node:22
-
+FROM node:24-bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
 COPY package*.json ./
+RUN npm ci
+COPY prisma ./prisma
+RUN DATABASE_URL='sqlserver://localhost:1433;database=pcdex;user=sa;password=unused;trustServerCertificate=true' npm run prisma:generate
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-RUN npm install
-
-COPY . .
-
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+COPY data/README.md ./data/README.md
+USER node
 EXPOSE 3000
-
-CMD ["npm","start"]
+CMD ["node", "dist/src/server.js"]

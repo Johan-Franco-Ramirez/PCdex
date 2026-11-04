@@ -38,6 +38,15 @@ Los precios y las ofertas son simulados. El diagnóstico comprueba datos demo de
 - `src/routes/`: navegación y estado compartido de la demo.
 - `public/images/`: recursos estáticos.
 
+## PCdex AI (solo frontend)
+
+Abre «PCdex AI» y prueba «Arma un PC con presupuesto de 4 millones», «Cambia el procesador por Intel», «Pon RAM DDR4», «Quita la gráfica» o «Verifica compatibilidad». También puedes seleccionar o eliminar componentes manualmente. El presupuesto y las piezas se comparten con el constructor existente. El chat se conserva al cambiar de pantalla; recargar reinicia el estado. «Nuevo chat» borra la conversación y conserva la configuración.
+
+`aiService.ts`, `componentService.ts` y `buildService.ts` implementan contratos asíncronos definidos en `src/types/ai.ts`, preparados para sustituir sus implementaciones por HTTP en el futuro. Actualmente solo consultan datos locales. No requieren backend, claves, peticiones externas, autenticación ni LocalStorage.
+
+El asistente reconoce instrucciones locales de ejemplo; no es un modelo de lenguaje. El generador elige una combinación completa compatible con las reglas disponibles y de mayor precio dentro del presupuesto. Si ninguna cabe, muestra la alternativa compatible más económica y su exceso. Las reglas comprueban socket, RAM, anclaje del cooler, formato y potencia estimada; no simulan rendimiento ni garantizan compatibilidad real.
+
 ## Importación administrativa
 
 Pega un arreglo JSON de hasta 100 componentes. Cada registro requiere `id`, `name`, `brand`, `category`, `price`, `summary`, `badge` y `specs` (pares de textos). Puede incluir `generation`, `socket`, `memory`, `watts`, `capacity` y `formFactor`. Usa «Cargar ejemplo» para obtener una plantilla válida. La importación añade nuevos IDs y actualiza los existentes; rechaza el lote entero si algún registro no es válido.
+- `#/ai`: PCdex AI, conversación simulada y constructor sincronizado, accesibles sin sesión.

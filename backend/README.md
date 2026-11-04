@@ -1,97 +1,119 @@
-# PCdex Backend
+# Backend PCdex
 
-## 1. Descripción
+API REST independiente: Node.js 24, Express 5, TypeScript estricto, Prisma 6.19.0 y SQL Server 2022. Está en `proyecto/backend/`, al mismo nivel que `proyecto/frontend/`. Cada paquete tiene sus propias dependencias, configuración y comandos. El frontend todavía no consume automáticamente esta API.
 
-El backend de PCdex es la API encargada de gestionar los datos y las funcionalidades de la plataforma PCdex, un proyecto educativo que ayuda a los usuarios a configurar computadores de escritorio según su presupuesto y necesidades.
+## Instalación
 
-PCdex no es una tienda. La plataforma ofrece información de componentes, validaciones técnicas, recomendaciones y enlaces externos a proveedores.
+```powershell
+cd backend
+Copy-Item .env.example .env
+# Edita SQLSERVER_PASSWORD y DATABASE_URL con credenciales locales reales.
+npm ci
+npm run prisma:generate
+npm run build
+npm test
+```
 
-## 2. Tecnologías
+`schema.prisma` usa el conector `sqlserver` de Prisma 6.19.0, fijado igual que Prisma Client. No mezclar esta configuración con la de Prisma 7, que utiliza adaptadores y otra configuración de conexión.
 
-- Node.js
-- TypeScript
-- Express
-- Prisma ORM
-- SQL Server Express
-- Docker
+## SQL Server en Docker
 
-**Entorno local registrado:** Node.js v26.3.0 y npm 11.16.0.
+Requiere Docker Engine y Docker Compose. Usa una contraseña propia que cumpla la política de SQL Server, no el marcador de `.env.example`.
 
-Las versiones definitivas y su compatibilidad se validarán antes de establecer el entorno de ejecución del proyecto.
+```powershell
+docker compose up -d --build
+```
 
-## 3. Arquitectura
+Compose inicia SQL Server, espera su healthcheck, crea `pcdex` si no existe, aplica las migraciones versionadas y arranca la API. No importa catálogo automáticamente ni descarga OpenDB. `migrate deploy` es un proceso independiente del arranque de Express. La contraseña del volumen existente debe coincidir con la configurada.
 
-El backend utiliza una organización modular por responsabilidades.
+Para trabajar con Node fuera del contenedor:
 
-- `src/config/`: configuración de la aplicación y servicios compartidos.
-- `src/middlewares/`: procesamiento común de solicitudes, errores y controles de seguridad.
-- `src/modules/`: módulos funcionales independientes.
-- `src/app.ts`: configuración de Express y registro de rutas y middlewares.
-- `src/server.ts`: inicialización del servidor.
-- `prisma/`: esquema de datos y migraciones de la base de datos.
+```powershell
+docker compose up -d sqlserver db-init
+npm run prisma:deploy
+npm run seed -- --dry-run
+npm run seed
+npm run dev
+```
 
-### Módulos previstos
+El `DATABASE_URL` de `.env` debe apuntar a localhost; Compose usa `sqlserver` como host interno. API: http://localhost:3000. CORS permite el origen configurado, por defecto http://localhost:5173. El healthcheck `/health` comprueba el proceso; `/health/ready` comprueba la BD. SQL Server requiere una plataforma compatible (habitualmente x86-64).
 
-**Hardware:** gestión y consulta del catálogo de componentes.
+## Datos reales y precios
 
-**Compatibility:** validación determinista de compatibilidad entre componentes.
+Coloca el JSON que descargues en `data/buildcores.json`. El formato está documentado en `data/README.md`; el importador acepta registros agrupados por categoría o un arreglo con categoría explícita. No adivina un payload de API desconocido.
 
-Los módulos de autenticación, usuarios, configuraciones de PC, precios, recomendaciones y administración se incorporarán progresivamente cuando se definan sus requisitos.
+OpenDB no publica precios. `Componente.precio` es `Decimal?` y se almacena como NULL si no hay una cotización. La generación consulta exclusivamente piezas con precio positivo. El catálogo puede mostrar piezas no cotizadas y la validación técnica no inventa precios.
 
-## 4. Principios de diseño
+Puedes suministrar `data/precios-cop.json`: un objeto cuyas claves son IDs de OpenDB y cuyos valores contienen `precio` y `moneda: "COP"`. Una alternativa es enriquecer cada registro con `precio` y `moneda: "COP"`. Los USD u otras monedas nunca se convierten automáticamente.
 
-- Mantener una arquitectura sencilla, modular y mantenible.
-- Separar rutas, controladores, servicios y acceso a datos cuando aporte claridad.
-- Validar los datos de entrada.
-- Centralizar el manejo de errores.
-- Mantener las credenciales fuera del control de versiones.
-- Separar las especificaciones de los componentes de los precios de los proveedores.
-- Utilizar reglas técnicas deterministas para comprobar compatibilidad.
-- Evitar dependencias innecesarias y funcionalidades fuera del alcance del proyecto.
+Refrigeracion.tdp_soportado es nullable porque OpenDB no proporciona esa capacidad en su esquema actual. La API emite una advertencia si no puede comprobarla. No inventa capacidad térmica ni deduce TDP de la cantidad de ventiladores.
 
-## 5. Estado actual
+El importador preserva el `opendb_id`, mapea unidades explícitas (GB y W) y exige los datos técnicos requeridos por cada subtipo. Los registros incompletos se reportan y el lote se rechaza antes de escribir. No hay seeds de catálogo inventado. RAM usa capacidad total; si falta, multiplica cantidad de módulos por capacidad individual.
 
-La estructura inicial de carpetas está creada y el módulo `hardware` cuenta con archivos para rutas, controlador, servicio, repositorio y esquemas.
+El seed es idempotente mediante upsert. No cambia la categoría de IDs existentes. Valida todo el archivo antes de escribir, pero las transacciones se ejecutan en lotes de 100 para no bloquear una importación grande: un fallo de BD revierte el lote actual y reporta cuántos registros quedaron confirmados. Reejecutarlo permite completar la carga. Los precios previamente cargados se conservan si el nuevo archivo no trae una cotización.
 
-La existencia de estos archivos no implica que su funcionamiento esté validado.
+En `prisma/seed.ts` está señalado el punto futuro `actualizarPreciosDesdeMercadoLibre()`. No hay scraping implementado ni peticiones ocultas a Mercado Libre.
 
-Pendiente de verificar:
+## Contrato HTTP
 
-- Scripts y dependencias de `package.json`.
-- Configuración de TypeScript.
-- Configuración de Express y arranque del servidor.
-- Esquema y configuración de Prisma.
-- Conexión con SQL Server Express.
-- Variables de entorno y archivo `.env.example`.
-- Configuración de Docker.
-- Pruebas automatizadas y documentación de endpoints.
+Categorías canónicas: `CPU`, `GPU`, `MOTHERBOARD`, `RAM`, `PSU`, `STORAGE`, `CASE`, `COOLER`. El frontend actual usa nombres españoles; debe adaptarlos al consumir esta API.
 
-## 6. Próximas etapas
+- `GET /api/componentes`: filtros `categoria`, `marca`, `precio_min`, `precio_max`, `q`, `page`, `limit`. Marca es coincidencia exacta según collation de SQL Server; `q` busca nombre o marca con contains. Paginación por defecto 1/20, máximo 100 por página. Orden estable por ID; filtro, conteo y paginación se ejecutan en BD. La respuesta es `{data, meta: {page, limit, total, pages}}`.
+- `GET /api/componentes/:id`: devuelve `{data}` con todos los subtipos; el no aplicable es null. Un ID desconocido devuelve 404.
+- `POST /api/builds/validar`: `{ "componente_ids": [ ...IDs reales de la BD... ] }`. Respuesta `{compatible, errores, advertencias}`. Un resultado incompatible devuelve HTTP 200 con `compatible:false`; una petición mal formada devuelve 400.
+- `POST /api/builds/generar`: `{ "presupuesto": 4000000, "uso": "gaming" }`. Usos permitidos: `gaming`, `trabajo`, `ofimatica`. No acepta sobreescrituras de datos técnicos desde el cliente. Devuelve IDs, componentes, presupuesto, total, restante, moneda, uso y validación; los importes monetarios se serializan como cadenas decimales para conservar centavos.
 
-1. Revisar y validar la arquitectura existente.
-2. Confirmar la configuración de Node.js, TypeScript y Express.
-3. Configurar y probar Prisma con SQL Server Express.
-4. Implementar y probar un endpoint de salud.
-5. Definir el modelo de datos del catálogo.
-6. Implementar las consultas de hardware y sus validaciones.
-7. Incorporar las reglas de compatibilidad.
-8. Añadir pruebas, seguridad y documentación de la API.
+Ejemplo de búsqueda:
 
-Cada etapa debe validarse antes de avanzar a la siguiente.
+```text
+GET /api/componentes?categoria=CPU&marca=AMD&precio_min=100000&precio_max=2000000&page=1&limit=20
+```
 
-## 7. Seguridad
+No hay respuestas con productos prefijados: con BD vacía, el catálogo devuelve una lista vacía y el generador devuelve un error de catálogo insuficiente.
 
-- No publicar el archivo `.env`.
-- No incluir contraseñas, tokens ni cadenas de conexión con credenciales en el repositorio.
-- Mantener `.env.example` con nombres de variables y valores de ejemplo no sensibles.
-- Proteger las operaciones administrativas cuando se implemente la autenticación y autorización.
+## Compatibilidad estricta y alcance
 
-## 8. Alcance
+`validarBuild(ids)` consulta la base de datos y evalúa los registros, sin confiar en el frontend o en una IA. Para una build completa se exige exactamente un componente de cada una de las ocho categorías. Se rechazan IDs desconocidos, repetidos, categorías duplicadas y relaciones ausentes o inconsistentes.
 
-La API proporciona datos y funcionalidades para PCdex. No procesa ventas ni pagos. Los precios y enlaces comerciales corresponden a proveedores externos y deberán mantenerse separados de las especificaciones técnicas de los componentes.
+Reglas:
 
-## 9. Instalación y ejecución
+1. Socket CPU = socket de motherboard (normalización de espacios, guiones y mayúsculas).
+2. Tipo de RAM de motherboard = tipo del kit RAM.
+3. `(TDP_CPU + TDP_GPU + 100 W) <= 0.8 * vatios_PSU`.
+4. Si se conoce el TDP soportado del cooler, debe alcanzar el TDP del CPU.
 
-Los comandos definitivos se documentarán después de revisar los scripts de `package.json`, la configuración de Prisma y los servicios de Docker.
+El cálculo eléctrico usa multiplicación entera para no redondear a favor de una fuente insuficiente. Se advierte sobre BIOS, conectores, dimensiones, formatos admitidos y capacidad térmica desconocida. El margen fijo de 100 W cubre el resto del sistema según la regla solicitada, no representa consumos individuales medidos. El esquema mínimo no permite certificar toda la compatibilidad física. La IA recibe el resultado; no decide si es compatible.
 
-No se deben ejecutar migraciones destructivas ni eliminar volúmenes de la base de datos sin comprobar previamente qué información contienen. 
+## Generación automática
+
+Consulta un snapshot de componentes cotizados en SQL Server. Busca una pieza por cada categoría, realiza poda por coste mínimo, socket, RAM, potencia y cooler, y vuelve a ejecutar las reglas completas antes de aceptar cada solución.
+
+Criterios transparentes basados en especificaciones, sin benchmarks ficticios:
+- gaming: maximiza VRAM, luego núcleos y capacidad RAM; a igualdad, menor coste.
+- trabajo: maximiza núcleos, luego RAM y VRAM; a igualdad, menor coste.
+- ofimatica: menor coste compatible.
+
+Ningún criterio equivale a una predicción de FPS o rendimiento real. El presupuesto se comprueba con Prisma.Decimal. No devuelve builds por encima del presupuesto. La solución es exacta para los datos consultados si termina dentro de los límites.
+
+Límites de seguridad de trabajo: máximo 10000 candidatos cotizados, número de nodos y tiempo configurables por entorno. La búsqueda cede periódicamente el event loop. Un límite excedido devuelve 503; no se presenta como inexistencia de combinaciones ni se devuelve una solución parcial como óptima. Presupuesto insuficiente, catálogo incompleto o ausencia de combinación comprobada: HTTP 422. No hay selección silenciosa de las primeras N piezas por categoría.
+
+## Archivos y responsabilidades
+
+- `src/modules/catalog/`: tipos, validación de filtros, consultas Prisma, controladores y rutas.
+- `src/modules/compatibility/`: reglas deterministas, validación del cuerpo, servicio de consulta, controlador y router montado en `/api/builds/validar`.
+- `src/modules/builds/`: contrato de generación, búsqueda acotada, servicio de BD, controlador y router.
+- `src/config/`: entorno y cliente Prisma.
+- `src/shared/`: errores tipados y middleware de respuesta.
+- `prisma/schema.prisma`: esquema 1:1 con PK compartida para cada subtipo.
+- `prisma/buildcores.mapper.ts`: transformación comprobable del JSON externo.
+- `prisma/seed.ts`: lectura, validación, upsert e informe.
+- `prisma/migrations/`: migración inicial generada desde el esquema.
+- `tests/`: fixtures exclusivos de pruebas, nunca servidos ni insertados por el seed.
+
+## Fuentes consultadas
+
+- Prisma 6 / SQL Server: https://www.prisma.io/docs/orm/v6/overview/databases/sql-server
+- OpenDB: https://github.com/buildcores/buildcores-open-db
+- Esquemas originales: https://github.com/buildcores/buildcores-open-db/tree/main/schemas
+
+La diferencia entre un esquema de especificaciones y una fuente de precios es deliberada. Conserva la atribución y licencia del conjunto de datos descargado. No se incluye ni redistribuye una descarga del catálogo en este paquete.

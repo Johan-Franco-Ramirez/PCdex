@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {chromium,expect} from '@playwright/test';
+const base=process.env.DOCKER_APP_URL??'http://localhost:8080';
+const browser=await chromium.launch();
+try{
+ const context=await browser.newContext();
+ const page=await context.newPage();
+ await page.goto(base);
+ const components=await context.request.get(base+'/api/components?limit=100');
+ assert.equal(components.status(),200);
+ const catalog=await components.json();
+ assert.ok(catalog.data.length>=40);
+ assert.equal(new Set(catalog.data.map(x=>x.category)).size,8);
+ const session=await context.request.get(base+'/api/auth/session');
+ assert.equal(session.status(),200);
+ assert.equal((await session.json()).data.user,null);
+ const cookie=(await context.cookies()).find(x=>x.name==='pcdex.sid');
+ assert.ok(cookie?.httpOnly);
+ assert.equal(cookie.sameSite,'Lax');
+ await page.getByRole('link',{name:'Catálogo',exact:true}).click();
+ await expect(page.locator('.catalog-card')).toHaveCount(catalog.meta.total,{timeout:15000});
+ await page.goto(base+'/#/admin');
+ await expect(page.getByRole('heading',{name:'Acceso administrativo'})).toBeVisible();
+ await page.goto(base+'/#/catalog');
+ await expect(page.locator('.catalog-card')).toHaveCount(catalog.meta.total,{timeout:15000});
+ await mkdir('test-results',{recursive:true});
+ await page.screenshot({path:'test-results/docker-catalog.png',fullPage:false});
+ console.log('Docker: Nginx, API, SQL Server, 8 categorías, catálogo, cookie HttpOnly y bloqueo administrativo verificados.');
+}finally{await browser.close()}

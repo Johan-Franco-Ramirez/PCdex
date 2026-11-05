@@ -1,40 +1,49 @@
 services:
-
   pcdex-db:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: pcdex-db
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "PcdexPassword2026!"
-    ports:
-      - "1433:1433"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD en el archivo de entorno}
     volumes:
       - pcdex-sql-data:/var/opt/mssql
-    networks:
-      - pcdex-network
+    restart: unless-stopped
+
+  inicializar:
+    build: ./backend
+    environment: &backend_environment
+      DATABASE_URL: 'sqlserver://pcdex-db:1433;database=pcdex_docker;user=sa;password={${MSSQL_SA_PASSWORD}};encrypt=true;trustServerCertificate=true'
+      SESSION_SECRET: ${SESSION_SECRET:?Define SESSION_SECRET en el archivo de entorno}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Define TOTP_ENCRYPTION_KEY en el archivo de entorno}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      HOST: 0.0.0.0
+      PORT: "3000"
+      NODE_ENV: development
+    command: ["npm", "run", "db:prepare"]
+    depends_on:
+      - pcdex-db
+    restart: on-failure
 
   backend:
     build: ./backend
-    container_name: pcdex-backend
-    ports:
-      - "3000:3000"
+    environment: *backend_environment
     depends_on:
-      - pcdex-db
-    networks:
-      - pcdex-network
+      inicializar:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   frontend:
     build: ./frontend
-    container_name: pcdex-frontend
     ports:
-      - "80:80"
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
     depends_on:
-      - backend
-    networks:
-      - pcdex-network
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pcdex-sql-data:
-
-networks:
-  pcdex-network:

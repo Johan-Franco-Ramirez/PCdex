@@ -1,6 +1,6 @@
 # Backend PCdex
 
-API REST independiente: Node.js 24, Express 5, TypeScript estricto, Prisma 6.19.0 y SQL Server 2022. Está en `proyecto/backend/`, al mismo nivel que `proyecto/frontend/`. Cada paquete tiene sus propias dependencias, configuración y comandos. El frontend todavía no consume automáticamente esta API.
+API REST: Node.js 24, Express 5, TypeScript estricto, Prisma 6.19.0 y SQL Server 2022. Cada paquete tiene sus propias dependencias, configuración y comandos; el frontend consume la API mediante `/api`.
 
 ## Instalación
 
@@ -117,3 +117,10 @@ Límites de seguridad de trabajo: máximo 10000 candidatos cotizados, número de
 - Esquemas originales: https://github.com/buildcores/buildcores-open-db/tree/main/schemas
 
 La diferencia entre un esquema de especificaciones y una fuente de precios es deliberada. Conserva la atribución y licencia del conjunto de datos descargado. No se incluye ni redistribuye una descarga del catálogo en este paquete.
+
+
+## Estado de la integración (pendiente)
+
+Las rutas `/api/componentes` y `/api/components`, la administración, los ensambles y el importador utilizan `Componente`. Las tablas históricas `Component` se conservan; si contienen datos, la migración se detiene y requiere convertirlos y revisar posibles colisiones de identificadores antes de continuar.
+
+El archivo `src/seed.ts` crea únicamente categorías y roles; no inserta productos ficticios. Los datos sintéticos de la otra rama se encuentran solo en `tests/fixtures.remote.ts`. La API protegida requiere configurar `SESSION_SECRET` y `TOTP_ENCRYPTION_KEY`.

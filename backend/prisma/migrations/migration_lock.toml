@@ -1,2 +1,2 @@
-# Archivo administrado por Prisma Migrate.
-provider = "sqlserver"
+# Identificador empleado por Prisma Migrate para SQL Server.
+provider = "mssql"

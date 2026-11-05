@@ -7,6 +7,7 @@ COPY prisma ./prisma
 RUN DATABASE_URL='sqlserver://localhost:1433;database=pcdex;user=sa;password=unused;trustServerCertificate=true' npm run prisma:generate
 COPY tsconfig.json ./
 COPY src ./src
+COPY scripts ./scripts
 RUN npm run build
 
 FROM node:24-bookworm-slim
@@ -16,6 +17,8 @@ COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/src ./src
 COPY data/README.md ./data/README.md
 USER node
 EXPOSE 3000

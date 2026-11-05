@@ -1,9 +1,9 @@
-import { env } from './config/env.js';
-import { prisma } from './config/prisma.js';
-import { app } from './app.js';
+import 'dotenv/config';
+import { createApp } from './app.js';
+import { prisma } from './config/database.js';
 await prisma.$connect();
-const server=app.listen(env.PORT,()=>console.log(`PCdex API escuchando en el puerto ${env.PORT}`));
-let stopping=false;
-async function shutdown(){if(stopping)return;stopping=true;const timer=setTimeout(()=>process.exit(1),10000);timer.unref();server.close(async()=>{await prisma.$disconnect();clearTimeout(timer);process.exit(0);});}
-process.on('SIGTERM',()=>void shutdown());
-process.on('SIGINT',()=>void shutdown());
+const server = createApp().listen(Number(process.env.PORT ?? 3000), process.env.HOST ?? '127.0.0.1', () => console.log('PCdex API lista en el puerto ' + (process.env.PORT ?? 3000)));
+for (const signal of ['SIGINT', 'SIGTERM'] as const)
+    process.on(signal, () => server.close(() => {
+        void prisma.$disconnect().then(() => process.exit(0));
+    }));

@@ -1,43 +1,24 @@
-import { useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, LockKeyhole, Mail, ShieldCheck, Terminal, UserRound } from 'lucide-react'
+import {useState,type FormEvent} from 'react'
+import {ArrowLeft,ArrowRight,ShieldCheck} from 'lucide-react'
 import Brand from '../../components/layout/Brand'
-import type { DemoUser, AuthFields, FieldErrors } from '../../types/auth'
-import type { Route } from '../../routes/navigation'
-const initialFields: AuthFields = { username: '', email: '', password: '', confirmation: '' }
-export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' | 'register'; onSuccess: (user: DemoUser) => void; navigate: (route: Route) => void }) {
-  const register = mode === 'register'
-  const [fields, setFields] = useState<AuthFields>(initialFields)
-  const [errors, setErrors] = useState<FieldErrors>({})
-  const [visible, setVisible] = useState(false)
-  const inputRefs = useRef<Partial<Record<keyof AuthFields, HTMLInputElement | null>>>({})
-  const score = [fields.password.length >= 8, /[A-Za-z]/.test(fields.password), /[0-9]/.test(fields.password)].filter(Boolean).length
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const next: FieldErrors = {}
-    if (register && !/^[a-zA-Z0-9_]{3,20}$/.test(fields.username.trim())) next.username = 'Usa entre 3 y 20 letras, números o guiones bajos.'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())) next.email = 'Introduce un correo válido, por ejemplo: piloto@pcdex.co.'
-    if (fields.password.length < 8) next.password = 'La contraseña debe tener al menos 8 caracteres.'
-    else if (register && (!/[A-Za-z]/.test(fields.password) || !/[0-9]/.test(fields.password))) next.password = 'Incluye al menos una letra y un número.'
-    if (register && fields.confirmation !== fields.password) next.confirmation = 'Las contraseñas no coinciden.'
-    setErrors(next)
-    const first = Object.keys(next)[0] as keyof AuthFields | undefined
-    if (first) { inputRefs.current[first]?.focus(); return }
-    const user = { username: register ? fields.username.trim() : fields.email.trim().split('@')[0], email: fields.email.trim() }
-    setFields(initialFields)
-    onSuccess(user)
-  }
-  function field(name: keyof AuthFields, label: string, placeholder: string, type: string, autoComplete: string) {
-    const Icon = name === 'username' ? UserRound : name === 'email' ? Mail : LockKeyhole
-    const password = name === 'password' || name === 'confirmation'
-    return <div className="auth-field"><label htmlFor={name}>{label}</label><div className={`auth-input ${errors[name] ? 'invalid' : ''}`}><Icon size={17}/><input ref={element => { inputRefs.current[name] = element }} id={name} name={name} type={password && visible ? 'text' : type} autoComplete={autoComplete} placeholder={placeholder} value={fields[name]} aria-invalid={!!errors[name]} aria-describedby={errors[name] ? `${name}-error` : name === 'password' ? 'password-hint' : undefined} onChange={event => { setFields({ ...fields, [name]: event.target.value }); setErrors(previous => ({ ...previous, [name]: undefined })) }} required maxLength={name === 'username' ? 20 : name === 'email' ? 254 : 128} autoCapitalize="none" spellCheck={false}/>{name === 'password' && <button type="button" aria-label={visible ? 'Ocultar contraseñas' : 'Mostrar contraseñas'} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={17}/> : <Eye size={17}/>}</button>}</div>{errors[name] && <p className="field-error" id={`${name}-error`} role="alert">{errors[name]}</p>}</div>
-  }
-  return <section className="auth-form-side"><a className="auth-back" href="#/home" onClick={event => { event.preventDefault(); navigate('home') }}><ArrowLeft size={15}/> Seguir explorando sin iniciar sesión</a><div className="auth-mobile-brand"><Brand/></div><div className="auth-form-container"><div className="auth-step"><span/> {register ? 'NUEVO EXPLORADOR / 02' : 'ACCESO AL SISTEMA / 01'}</div><div className="auth-form-icon">{register ? <UserRound size={24}/> : <Fingerprint size={27}/>}</div><h1>{register ? 'Tu próximo build' : 'Bienvenido de nuevo'}<br/><span>{register ? 'empieza aquí.' : 'al sistema.'}</span></h1><p className="auth-intro">{register ? 'Crea tu perfil de explorador y encuentra las piezas para tu próximo gran proyecto.' : 'Entra a tu espacio y sigue explorando el universo del hardware.'}</p><div className="auth-demo-note"><Terminal size={15}/><span>DEMO LOCAL<small>{register ? 'El registro simula el acceso; no crea una cuenta real.' : 'Usa cualquier correo válido y una contraseña de 8 caracteres o más.'} Las contraseñas no se guardan.</small></span></div><form noValidate onSubmit={submit}>
-    {register && field('username', 'Nombre de usuario', 'ej. explorador_pc', 'text', 'username')}
-    {field('email', 'Correo electrónico', 'tu@correo.com', 'email', 'email')}
-    {field('password', 'Contraseña', register ? 'Crea tu contraseña' : 'Introduce tu contraseña', 'password', register ? 'new-password' : 'current-password')}
-    <p className="password-hint" id="password-hint">{register ? 'Mínimo 8 caracteres, una letra y un número.' : 'Mínimo 8 caracteres para simular el acceso.'}</p>
-    {register && <><div className="password-strength" aria-label={`Requisitos cumplidos: ${score} de 3`}>{[1, 2, 3].map(n => <span key={n} className={score >= n ? 'filled' : ''}/>)}</div>{field('confirmation', 'Confirmar contraseña', 'Repite tu contraseña', 'password', 'new-password')}</>}
-    <button className="auth-submit" type="submit">{register ? 'Crear perfil de demostración' : 'Iniciar sesión demo'}<ArrowRight size={18}/></button>
-    </form><div className="auth-switch">{register ? '¿Ya tienes un perfil?' : '¿Primera vez en PCDex?'} <a href={register ? '#/login' : '#/register'} onClick={event => { event.preventDefault(); navigate(register ? 'login' : 'register') }}>{register ? 'Iniciar sesión' : 'Crear una cuenta'}<ArrowUpSmall/></a></div><div className="auth-session-note"><ShieldCheck size={14}/> Sesión temporal · Se reinicia al recargar</div></div><div className="auth-form-footer">PCDEX CORE v1.0 <span>CO / ESPAÑOL</span></div></section>
+import type {Route} from '../../routes/navigation'
+import {api,type AuthUser} from '../../services/api'
+export default function AuthForm({mode,onSuccess,navigate}:{mode:'login'|'register';onSuccess:(user:AuthUser)=>void;navigate:(route:Route)=>void}){
+ const register=mode==='register'
+ const [username,setUsername]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState('')
+ const [error,setError]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(false),[secret,setSecret]=useState(''),[uri,setUri]=useState(''),[code,setCode]=useState('')
+ async function submit(event:FormEvent){event.preventDefault();setError('');setBusy(true);try{
+ if(pending){const result=await api<{user:AuthUser}>('/api/auth/totp/verify','POST',{code});onSuccess(result.user);return}
+ if(register&&password!==confirmation)throw new Error('Las contraseñas no coinciden.')
+ const result=await api<{user?:AuthUser;requiresTotp?:boolean;needsSetup?:boolean}>(`/api/auth/${register?'register':'login'}`,'POST',{email,password,...(register?{username}:{})})
+ setPassword('');setConfirmation('')
+ if(result.requiresTotp){setPending(true);if(result.needsSetup){const enrollment=await api<{secret:string;uri:string}>('/api/auth/totp/setup','POST',{});setSecret(enrollment.secret);setUri(enrollment.uri)}}else if(result.user)onSuccess(result.user)
+ }catch(e){setError(e instanceof Error?e.message:'Error de acceso.')}finally{setBusy(false)}}
+ return <section className="auth-form-side"><a className="auth-back" href="#/home" onClick={e=>{e.preventDefault();navigate('home')}}><ArrowLeft size={15}/> Seguir explorando</a><div className="auth-mobile-brand"><Brand/></div><div className="auth-form-container"><div className="auth-step"><span/> PCDEX / ACCESO SEGURO</div><h1>{pending?'Verifica tu acceso':register?'Crea tu cuenta':'Bienvenido de nuevo'}<span>.</span></h1><p className="auth-intro">{pending?'Introduce el código de seis dígitos de Google Authenticator.':'Tus configuraciones se guardan en tu cuenta.'}</p>{secret&&<div className="panel p-6"><h3>Configurar Google Authenticator</h3><p>Añade una cuenta mediante clave de configuración. Guarda esta clave de forma privada; no se mostrará después de confirmar.</p><code style={{overflowWrap:'anywhere'}}>{secret}</code><p><a href={uri}>Abrir aplicación compatible</a></p></div>}<form onSubmit={submit}>
+ {pending?<label className="module-field">Código de autenticación<input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value)}/></label>:<>
+ {register&&<label className="module-field">Nombre de usuario<input required maxLength={80} autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)}/></label>}
+ <label className="module-field">Correo electrónico<input required type="email" autoComplete="email" maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></label>
+ <label className="module-field">Contraseña<input required type="password" autoComplete={register?'new-password':'current-password'} minLength={12} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)}/></label><p className="muted">Entre 12 y 128 caracteres.</p>
+ {register&&<label className="module-field">Confirmar contraseña<input required type="password" autoComplete="new-password" value={confirmation} onChange={e=>setConfirmation(e.target.value)}/></label>}</>}
+ {error&&<p className="field-error" role="alert">{error}</p>}<button className="auth-submit" disabled={busy}>{busy?'Procesando…':pending?'Verificar código':register?'Crear cuenta':'Iniciar sesión'}<ArrowRight size={18}/></button></form>{pending?<button className="module-button" onClick={()=>{setPending(false);setSecret('');setUri('');setCode('')}}>Volver al acceso</button>:<div className="auth-switch"><button className="module-button" onClick={()=>navigate(register?'login':'register')}>{register?'Ya tengo una cuenta':'Crear una cuenta'}</button></div>}<div className="auth-session-note"><ShieldCheck size={14}/> Sesión protegida mediante cookie HttpOnly</div></div></section>
 }
-function ArrowUpSmall() { return <ArrowRight size={13}/> }

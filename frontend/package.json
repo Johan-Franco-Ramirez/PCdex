@@ -8,9 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node scripts/check-domain.cjs",
-    "test:e2e": "playwright test",
-    "test:docker": "node scripts/smoke-docker.mjs"
+    "test": "node scripts/check-domain.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -21,7 +19,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.64.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

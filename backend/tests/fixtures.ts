@@ -16,3 +16,4 @@ export function fixture(category:Categoria, id:string=category, price='10.00'):C
  return base;
 }
 export function fullBuild(){return (['CPU','GPU','MOTHERBOARD','RAM','PSU','STORAGE','CASE','COOLER'] as const).map(c=>fixture(c));}
+

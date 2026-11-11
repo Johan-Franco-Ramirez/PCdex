@@ -1,60 +1,40 @@
 {
   "name": "pcdex-backend",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "typecheck": "tsc -p tsconfig.test.json",
-    "seed": "tsx prisma/seed.ts",
-    "test": "tsx --test tests/*.test.ts",
-    "admin:create": "tsx scripts/create-admin.ts",
-    "import:json": "tsx scripts/import-json.ts",
-    "db:deploy": "prisma migrate deploy",
-    "test:integration": "tsx --test tests/sql.integration.ts",
-    "test:sql": "tsx scripts/test-sql.ts",
-    "local:init": "node scripts/init-local.mjs",
-    "dev:local": "node --env-file=.env.functional --import tsx src/server.ts",
-    "admin:create:local": "node --env-file=.env.functional --import tsx scripts/create-admin.ts",
-    "test:sql:local": "node --env-file=.env.functional --import tsx scripts/test-sql.ts",
-    "db:prepare:local": "node --env-file=.env.functional --import tsx scripts/prepare-db.ts",
-    "seed:local": "node --env-file=.env.functional --import tsx src/seed.ts",
-    "db:prepare": "tsx scripts/prepare-db.ts",
-    "test:browser:local": "node --env-file=.env.functional --import tsx scripts/test-browser.ts",
     "prisma:validate": "prisma validate",
+    "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
-    "seed:estructural": "tsx src/seed.ts",
-    "import:opendb": "tsx prisma/seed.ts",
-    "test:remoto": "tsx --test tests/unit.test.ts",
-    "typecheck:remoto": "tsc -p tsconfig.check.json"
+    "seed": "tsx prisma/seed.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.test.json"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.7.3",
-    "express-session": "^1.19.0",
-    "otpauth": "^9.6.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
-    "@types/express-session": "^1.19.0",
     "@types/node": "^24.0.0",
     "prisma": "6.19.0",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3"
-  },
-  "engines": {
-    "node": ">=22"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

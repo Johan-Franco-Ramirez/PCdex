@@ -15,4 +15,4 @@ export function diagnose(selection: Build['selection'], items: CatalogComponent[
  checks.push({label:'Revisión física y BIOS',status:'warning',message:'Verifica BIOS, dimensiones, conectores y capacidad térmica con el fabricante.'})
  return checks
 }
-export function buildTotal(selection: Build['selection'], items: CatalogComponent[]) { return items.filter(i=>Object.values(selection).includes(i.id)).reduce((sum,i)=>sum+i.price,0) }
+export function buildTotal(selection: Build['selection'], items: CatalogComponent[]) { return items.filter(i=>i.priceKnown!==false&&Object.values(selection).includes(i.id)).reduce((sum,i)=>sum+i.price,0) }

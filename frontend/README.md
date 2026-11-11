@@ -16,14 +16,22 @@ React + TypeScript + Vite + Tailwind CSS + Lucide.
 - `#/component?id=CPU-0042`: ficha técnica dinámica y acciones de guardado.
 - `#/builder`: una pieza por categoría, presupuesto, diagnóstico simulado y varios ensambles con nombre.
 - `#/comparison`: ofertas por componente y estado (nuevo, usado o reacondicionado), sin enlaces externos.
-- `#/admin`: administración demo de componentes y ofertas, con registro, edición, eliminación e importación JSON.
-- `#/login` y `#/register`: acceso y registro de demostración.
+- `#/admin`: administración demo de componentes y ofertas para cuentas con rol `ADMIN`, con registro, edición, eliminación e importación JSON.
+- `#/login` y `#/register`: acceso y registro de cuentas guardadas en MySQL.
+
+## Conexión con el backend
+
+En desarrollo, Vite redirige `/api` y `/health` a `http://localhost:3000`. En Docker, Nginx envía `/api` al servicio `api` dentro de Compose. Arranca el stack con `cd backend; docker compose --env-file .env.mysql up -d --build`; abre http://localhost:8081. El frontend consulta todas las páginas del catálogo compartido y valida en el servidor los ensambles completos. La interfaz indica si usa el backend o el catálogo local de demostración.
+
+Si se despliega el frontend y el backend en hosts separados, define `VITE_API_URL` al construir el frontend y configura `CORS_ORIGIN` en el backend para el origen del navegador.
 
 ## Datos y sesión
 
-El contenido público y el constructor se pueden explorar sin sesión. Guardar favoritos, componentes o ensambles requiere iniciar sesión; la acción pendiente se completa al acceder. El administrador requiere una sesión demo, sin roles reales.
+El catálogo público procede del backend cuando está disponible; si no, la app muestra datos locales de demostración. El constructor valida sus ocho piezas con las reglas del backend. Registro, inicio y cierre de sesión usan la API; la sesión se restaura al recargar. Favoritos, ensambles y acciones administrativas aún son simulaciones locales.
 
-Los datos y los cambios administrativos viven en memoria y se reinician al recargar. Los favoritos y ensambles se separan por correo dentro de la sesión. No se almacenan contraseñas ni se realiza autenticación real.
+Los cambios administrativos, favoritos y ensambles viven en memoria y se reinician al recargar. El backend almacena un hash de la contraseña y mantiene la sesión con una cookie HttpOnly; la contraseña no se guarda en el frontend.
+
+Las cuentas `ADMIN` entran directamente a Administración al iniciar sesión y pueden abrir todas las pestañas públicas, además de Administración. Al recargar se conserva la sección elegida. El logo vuelve a Inicio. Usuarios y visitantes conservan la navegación pública sin Administración; abrir `#/admin` directamente envía a los usuarios al inicio y a los visitantes al acceso. La interfaz espera a comprobar la sesión antes de mostrar el contenido correspondiente al rol. El rol se obtiene de la API y se asigna en el backend; el registro público no permite elegirlo.
 
 Los precios y las ofertas son simulados. El diagnóstico comprueba datos demo de socket, memoria, anclaje del cooler y potencia estimada con margen; siempre requiere verificar BIOS, dimensiones, conectores y capacidad térmica con el fabricante.
 

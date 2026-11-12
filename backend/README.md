@@ -20,13 +20,25 @@ Para ejecutar Node fuera de Docker, ajusta `DATABASE_URL` en `.env` a `mysql://p
 
 El catálogo se almacena en `Componente` y sus ocho tablas de especificaciones. `Usuario` guarda la cuenta y un hash de contraseña; `Sesion` guarda un hash del token y su vencimiento. `Favorito` enlaza usuarios con componentes, y `Ensamble` y `PiezaEnsamble` guardan las configuraciones de cada usuario. Los correos, tokens y favoritos tienen restricciones de unicidad; las claves foráneas protegen las referencias existentes.
 
-El registro e inicio de sesión usan `Usuario` y `Sesion`. Favoritos, ensambles guardados y administración siguen siendo demostraciones locales. Los componentes y precios reales se cargan por separado con el importador; no se crean cuentas ni productos de ejemplo.
+El registro e inicio de sesión usan `Usuario` y `Sesion`. El perfil y los favoritos se guardan en MySQL. Ensambles guardados y administración siguen siendo demostraciones locales. Los componentes y precios reales se cargan por separado con el importador; no se crean cuentas ni productos de ejemplo.
 
 ## Autenticación
 
 `POST /api/auth/registro` recibe `username`, `email` y `password`; `POST /api/auth/login` recibe `email` y `password`. Ambos devuelven el perfil y una cookie HttpOnly con vencimiento de siete días. `GET /api/auth/sesion` recupera el perfil y `POST /api/auth/logout` invalida la sesión. Las contraseñas se protegen con scrypt y una sal aleatoria; solo se guarda el hash del token de sesión. Las peticiones de escritura comprueban el origen y registro e inicio de sesión tienen un límite básico de intentos por proceso.
 
+`PATCH /api/auth/perfil` actualiza el nombre del usuario autenticado. `GET /api/auth/favoritos` lista sus componentes; `PUT` y `DELETE /api/auth/favoritos/:id` los agregan o retiran de manera idempotente. Las operaciones usan la sesión activa y no reciben el identificador del usuario desde el cliente.
+
+`PATCH /api/auth/perfil/correo` recibe `email` y `currentPassword`; `PATCH /api/auth/perfil/contrasena` recibe `currentPassword` y `newPassword`. Ambos comprueban la contraseña actual y el origen de la solicitud. Al cambiar la contraseña se invalidan las otras sesiones, manteniendo la sesión actual. El correo se actualiza sin verificación mediante mensaje, así que el formulario solicita escribirlo dos veces. Las cuentas que solo tienen Google pueden crear primero una contraseña local tras verificar de nuevo la misma cuenta de Google; la autorización es de un solo uso, está vinculada a la sesión y vence en cinco minutos.
+
 Para desplegar con HTTPS, configura `COOKIE_SECURE=true` y `CORS_ORIGIN` con el origen autorizado; si frontend y API usan dominios diferentes, debe revisarse la política de cookies. El límite de intentos en memoria es local a cada proceso y debe sustituirse por un control compartido al operar varias instancias. Aún no hay verificación de correo ni recuperación de contraseña.
+
+### Acceso con Google
+
+En Google Cloud, configura la pantalla de consentimiento y crea un cliente OAuth de tipo aplicación web. Para Docker local, usa `http://localhost:8081` como origen y `http://localhost:8081/api/auth/google/callback` como URI de redirección autorizada. Si la aplicación está en modo de prueba, agrega la cuenta de Google a los usuarios de prueba.
+
+Agrega a `.env.mysql` los valores privados `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`. Mantén `GOOGLE_REDIRECT_URI=http://localhost:8081/api/auth/google/callback` y `FRONTEND_URL=http://localhost:8081` para el entorno Docker. Reinicia con `docker compose --env-file .env.mysql up -d --build`. Para Vite local, configura en `.env` el origen y la redirección correspondientes a `http://localhost:5173` y autorízalos en Google Cloud. En producción, usa HTTPS y las direcciones reales.
+
+El servidor comprueba la firma, audiencia, emisor y vencimiento del ID token con la biblioteca de Google, y valida `state`, PKCE, nonce y correo verificado. El identificador estable de Google se guarda en `Usuario.google_sub`. Una cuenta local con el mismo correo no se vincula automáticamente: usa su contraseña hasta que exista una función explícita de vinculación. Las cuentas creadas con Google pueden crear una contraseña local desde su perfil tras volver a autenticarse con Google.
 
 ## Datos reales y precios
 

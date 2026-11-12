@@ -38,7 +38,8 @@ model Usuario {
   id             String          @id @default(cuid()) @db.VarChar(30)
   nombre         String          @db.VarChar(120)
   email          String          @unique @db.VarChar(191)
-  password_hash  String          @db.VarChar(255)
+  password_hash  String?         @db.VarChar(255)
+  google_sub     String?         @unique @db.VarChar(255)
   rol            RolUsuario      @default(USUARIO)
   creado_en      DateTime        @default(now())
   actualizado_en DateTime        @updatedAt
@@ -54,8 +55,19 @@ model Sesion {
   creado_en   DateTime @default(now())
   expira_en   DateTime
   usuario     Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  verificaciones VerificacionGoogle[]
 
   @@index([usuario_id])
+  @@index([expira_en])
+}
+
+model VerificacionGoogle {
+  token_hash String   @id @db.VarChar(64)
+  sesion_id  String   @db.VarChar(30)
+  expira_en  DateTime
+  sesion     Sesion   @relation(fields: [sesion_id], references: [id], onDelete: Cascade)
+
+  @@index([sesion_id])
   @@index([expira_en])
 }
 

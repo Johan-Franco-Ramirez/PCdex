@@ -20,7 +20,7 @@ test('registro, sesión, credenciales y cierre con MySQL', {skip:process.env.PCD
   const cookie=created.headers.get('set-cookie'); assert.ok(cookie); assert.match(cookie,/HttpOnly/i); assert.match(cookie,/SameSite=Lax/i);
   const token=cookie.split(';')[0]; assert.ok(token);
   const saved=await prisma.usuario.findUnique({where:{email},include:{sesiones:true}}); assert.ok(saved);
-  assert.notEqual(saved.password_hash,password); assert.match(saved.password_hash,/^scrypt:/); assert.equal(saved.sesiones.length,1); assert.ok(!cookie.includes(saved.sesiones[0]!.token_hash));
+  assert.ok(saved.password_hash); assert.notEqual(saved.password_hash,password); assert.match(saved.password_hash,/^scrypt:/); assert.equal(saved.sesiones.length,1); assert.ok(!cookie.includes(saved.sesiones[0]!.token_hash));
   assert.equal((await fetch(base+'/sesion',{headers:{Cookie:token}})).status,200);
   assert.equal((await post('/registro',{username:'prueba_pc',email,password})).status,409);
   assert.equal((await post('/login',{email,password:'Incorrecta123'})).status,401);

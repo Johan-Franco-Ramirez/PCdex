@@ -1,6 +1,6 @@
 import type { DemoUser } from '../types/auth'
 
-export type Route = 'ai' | 'login' | 'register' | 'home' | 'catalog' | 'component' | 'builder' | 'comparison' | 'admin'
+export type Route = 'ai' | 'login' | 'register' | 'home' | 'catalog' | 'component' | 'builder' | 'comparison' | 'admin' | 'profile'
 type NavigationItem = readonly [Route, string]
 
 const publicNavigation: readonly NavigationItem[] = [
@@ -13,11 +13,12 @@ const publicNavigation: readonly NavigationItem[] = [
 const adminNavigation: readonly NavigationItem[] = [...publicNavigation, ['admin', 'Administración']]
 
 export function isAdmin(user: DemoUser | null): boolean { return user?.role === 'ADMIN' }
-export function navigationFor(user: DemoUser | null): readonly NavigationItem[] { return isAdmin(user) ? adminNavigation : publicNavigation }
+export function navigationFor(user: DemoUser | null): readonly NavigationItem[] { return user ? [...(isAdmin(user) ? adminNavigation : publicNavigation), ['profile', 'Mi perfil']] : publicNavigation }
 export function routeForUser(route: Route, user: DemoUser | null): Route {
  if (isAdmin(user)) return route === 'login' || route === 'register' ? 'admin' : route
+ if (route === 'profile' && !user) return 'login'
  if (route === 'admin') return user ? 'home' : 'login'
  return route
 }
-export function readRoute(): Route { const value=window.location.hash.slice(2).split('?')[0]; return ['ai','login','register','home','catalog','component','builder','comparison','admin'].includes(value)?value as Route:'home' }
+export function readRoute(): Route { const value=window.location.hash.slice(2).split('?')[0]; return ['ai','login','register','home','catalog','component','builder','comparison','admin','profile'].includes(value)?value as Route:'home' }
 

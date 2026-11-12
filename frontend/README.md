@@ -18,6 +18,9 @@ React + TypeScript + Vite + Tailwind CSS + Lucide.
 - `#/comparison`: ofertas por componente y estado (nuevo, usado o reacondicionado), sin enlaces externos.
 - `#/admin`: administración demo de componentes y ofertas para cuentas con rol `ADMIN`, con registro, edición, eliminación e importación JSON.
 - `#/login` y `#/register`: acceso y registro de cuentas guardadas en MySQL.
+- `#/profile`: edición del nombre, correo y contraseña, y consulta de favoritos. Los cambios de correo y contraseña requieren la contraseña actual de PCdex.
+
+El botón «Continuar con Google» requiere configurar el cliente OAuth en el backend; consulta la sección «Acceso con Google» del README del backend.
 
 ## Conexión con el backend
 
@@ -27,9 +30,9 @@ Si se despliega el frontend y el backend en hosts separados, define `VITE_API_UR
 
 ## Datos y sesión
 
-El catálogo público procede del backend cuando está disponible; si no, la app muestra datos locales de demostración. El constructor valida sus ocho piezas con las reglas del backend. Registro, inicio y cierre de sesión usan la API; la sesión se restaura al recargar. Favoritos, ensambles y acciones administrativas aún son simulaciones locales.
+El catálogo público procede del backend cuando está disponible; si no, la app muestra datos locales de demostración. El constructor valida sus ocho piezas con las reglas del backend. Registro, inicio y cierre de sesión, perfil y favoritos usan la API; la sesión y los favoritos se restauran al recargar. Ensambles y acciones administrativas aún son simulaciones locales.
 
-Los cambios administrativos, favoritos y ensambles viven en memoria y se reinician al recargar. El backend almacena un hash de la contraseña y mantiene la sesión con una cookie HttpOnly; la contraseña no se guarda en el frontend.
+Los cambios administrativos y ensambles viven en memoria y se reinician al recargar. El backend almacena un hash de la contraseña y mantiene la sesión con una cookie HttpOnly; la contraseña no se guarda en el frontend.
 
 Las cuentas `ADMIN` entran directamente a Administración al iniciar sesión y pueden abrir todas las pestañas públicas, además de Administración. Al recargar se conserva la sección elegida. El logo vuelve a Inicio. Usuarios y visitantes conservan la navegación pública sin Administración; abrir `#/admin` directamente envía a los usuarios al inicio y a los visitantes al acceso. La interfaz espera a comprobar la sesión antes de mostrar el contenido correspondiente al rol. El rol se obtiene de la API y se asigna en el backend; el registro público no permite elegirlo.
 

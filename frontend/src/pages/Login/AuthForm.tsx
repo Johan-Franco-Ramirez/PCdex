@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, LockKeyhole, Mail, Shi
 import Brand from '../../components/layout/Brand'
 import type { DemoUser, AuthFields, FieldErrors } from '../../types/auth'
 import type { Route } from '../../routes/navigation'
-import { register as registerAccount, signIn } from '../../services/auth'
+import { googleLoginUrl, register as registerAccount, signIn } from '../../services/auth'
 const initialFields: AuthFields = { username: '', email: '', password: '', confirmation: '' }
 export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' | 'register'; onSuccess: (user: DemoUser) => void; navigate: (route: Route) => void }) {
   const register = mode === 'register'
@@ -11,7 +11,17 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
   const [errors, setErrors] = useState<FieldErrors>({})
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [formError, setFormError] = useState('')
+  const [formError, setFormError] = useState(() => {
+    const code = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('google_error')
+    const errors: Record<string,string> = {
+      no_configurado:'El acceso con Google aún no está configurado.',
+      cuenta_existente:'Ya existe una cuenta con este correo. Inicia sesión con tu contraseña; la vinculación con Google aún no está disponible.',
+      cancelado:'No se completó el acceso con Google.',
+      solicitud_invalida:'La solicitud de Google ha caducado o no es válida. Inténtalo de nuevo.',
+      fallo:'No se pudo completar el acceso con Google. Inténtalo de nuevo.',
+    }
+    return code ? errors[code] ?? errors.fallo : ''
+  })
   const inputRefs = useRef<Partial<Record<keyof AuthFields, HTMLInputElement | null>>>({})
   const score = [fields.password.length >= 8, /[A-Za-z]/.test(fields.password), /[0-9]/.test(fields.password)].filter(Boolean).length
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -46,6 +56,6 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
     <p className="password-hint" id="password-hint">{register ? 'Mínimo 8 caracteres, una letra y un número.' : 'Usa la contraseña de tu cuenta.'}</p>
     {register && <><div className="password-strength" aria-label={`Requisitos cumplidos: ${score} de 3`}>{[1, 2, 3].map(n => <span key={n} className={score >= n ? 'filled' : ''}/>)}</div>{field('confirmation', 'Confirmar contraseña', 'Repite tu contraseña', 'password', 'new-password')}</>}
     {formError && <p className="field-error" role="alert">{formError}</p>}<button className="auth-submit" type="submit" disabled={busy}>{busy ? 'Procesando…' : register ? 'Crear cuenta' : 'Iniciar sesión'}<ArrowRight size={18}/></button>
-    </form><div className="auth-switch">{register ? '¿Ya tienes un perfil?' : '¿Primera vez en PCDex?'} <a href={register ? '#/login' : '#/register'} onClick={event => { event.preventDefault(); navigate(register ? 'login' : 'register') }}>{register ? 'Iniciar sesión' : 'Crear una cuenta'}<ArrowUpSmall/></a></div><div className="auth-session-note"><ShieldCheck size={14}/> Tu sesión se mantiene al recargar</div></div><div className="auth-form-footer">PCDEX CORE v1.0 <span>CO / ESPAÑOL</span></div></section>
+    </form><a className="google-login" href={googleLoginUrl}><span aria-hidden="true">G</span> Continuar con Google</a><div className="auth-switch">{register ? '¿Ya tienes un perfil?' : '¿Primera vez en PCDex?'} <a href={register ? '#/login' : '#/register'} onClick={event => { event.preventDefault(); navigate(register ? 'login' : 'register') }}>{register ? 'Iniciar sesión' : 'Crear una cuenta'}<ArrowUpSmall/></a></div><div className="auth-session-note"><ShieldCheck size={14}/> Tu sesión se mantiene al recargar</div></div><div className="auth-form-footer">PCDEX CORE v1.0 <span>CO / ESPAÑOL</span></div></section>
 }
 function ArrowUpSmall() { return <ArrowRight size={13}/> }

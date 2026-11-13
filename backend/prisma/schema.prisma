@@ -3,27 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model Componente {
-  id              String          @id @db.NVarChar(100)
-  nombre          String          @db.NVarChar(300)
-  marca           String          @db.NVarChar(120)
-  categoria       String          @db.NVarChar(40)
+  id              String          @id @db.VarChar(100)
+  nombre          String          @db.VarChar(300)
+  marca           String          @db.VarChar(120)
+  categoria       String          @db.VarChar(40)
   // NULL significa sin cotización. Nunca usar 0 como precio desconocido.
   precio          Decimal?        @db.Decimal(18, 2)
-  modelo          String?         @db.NVarChar(300)
-  descripcion     String?         @db.NVarChar(2000)
-  imagen          String?         @db.NVarChar(2000)
-  priceSource     String?         @db.NVarChar(300)
-  priceReferenceDate String?      @db.NVarChar(10)
-  priceKind       String?         @db.NVarChar(20)
-  activo          Boolean         @default(true)
-  revision        Int             @default(1)
-  specsExtra      String?         @db.NVarChar(Max)
-  details         BuildItem[]
   procesador      Procesador?
   tarjetaGrafica  TarjetaGrafica?
   placaMadre      PlacaMadre?
@@ -32,231 +22,135 @@ model Componente {
   almacenamiento Almacenamiento?
   gabinete        Gabinete?
   refrigeracion   Refrigeracion?
+  favoritos       Favorito[]
+  piezasEnsamble  PiezaEnsamble[]
 
   @@index([categoria, precio, id])
   @@index([marca])
 }
 
+enum RolUsuario {
+  USUARIO
+  ADMIN
+}
+
+model Usuario {
+  id             String          @id @default(cuid()) @db.VarChar(30)
+  nombre         String          @db.VarChar(120)
+  email          String          @unique @db.VarChar(191)
+  password_hash  String?         @db.VarChar(255)
+  google_sub     String?         @unique @db.VarChar(255)
+  rol            RolUsuario      @default(USUARIO)
+  creado_en      DateTime        @default(now())
+  actualizado_en DateTime        @updatedAt
+  sesiones       Sesion[]
+  favoritos      Favorito[]
+  ensambles      Ensamble[]
+}
+
+model Sesion {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  usuario_id  String   @db.VarChar(30)
+  token_hash  String   @unique @db.VarChar(128)
+  creado_en   DateTime @default(now())
+  expira_en   DateTime
+  usuario     Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  verificaciones VerificacionGoogle[]
+
+  @@index([usuario_id])
+  @@index([expira_en])
+}
+
+model VerificacionGoogle {
+  token_hash String   @id @db.VarChar(64)
+  sesion_id  String   @db.VarChar(30)
+  expira_en  DateTime
+  sesion     Sesion   @relation(fields: [sesion_id], references: [id], onDelete: Cascade)
+
+  @@index([sesion_id])
+  @@index([expira_en])
+}
+
+model Favorito {
+  usuario_id    String     @db.VarChar(30)
+  componente_id String     @db.VarChar(100)
+  creado_en     DateTime   @default(now())
+  usuario       Usuario    @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Restrict)
+
+  @@id([usuario_id, componente_id])
+  @@index([componente_id])
+}
+
+model Ensamble {
+  id             String          @id @default(cuid()) @db.VarChar(30)
+  usuario_id     String          @db.VarChar(30)
+  nombre         String          @db.VarChar(120)
+  presupuesto    Decimal?        @db.Decimal(18, 2)
+  creado_en      DateTime        @default(now())
+  actualizado_en DateTime        @updatedAt
+  usuario        Usuario         @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  piezas         PiezaEnsamble[]
+
+  @@index([usuario_id])
+}
+
+model PiezaEnsamble {
+  ensamble_id   String     @db.VarChar(30)
+  componente_id String     @db.VarChar(100)
+  ensamble      Ensamble   @relation(fields: [ensamble_id], references: [id], onDelete: Cascade)
+  componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Restrict)
+
+  @@id([ensamble_id, componente_id])
+  @@index([componente_id])
+}
+
 model Procesador {
-  componente_id String @id @db.NVarChar(100)
-  socket        String @db.NVarChar(60)
+  componente_id String @id @db.VarChar(100)
+  socket        String @db.VarChar(60)
   nucleos       Int
   tdp           Int
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model TarjetaGrafica {
-  componente_id String @id @db.NVarChar(100)
+  componente_id String @id @db.VarChar(100)
   vram          Decimal @db.Decimal(10, 2)
   tdp           Int
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model PlacaMadre {
-  componente_id String @id @db.NVarChar(100)
-  socket        String @db.NVarChar(60)
-  tipo_ram      String @db.NVarChar(40)
-  formato       String @db.NVarChar(60)
+  componente_id String @id @db.VarChar(100)
+  socket        String @db.VarChar(60)
+  tipo_ram      String @db.VarChar(40)
+  formato       String @db.VarChar(60)
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model MemoriaRAM {
-  componente_id String @id @db.NVarChar(100)
-  tipo          String @db.NVarChar(40)
+  componente_id String @id @db.VarChar(100)
+  tipo          String @db.VarChar(40)
   capacidad     Int
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model FuentePoder {
-  componente_id String @id @db.NVarChar(100)
+  componente_id String @id @db.VarChar(100)
   vatios        Int
-  certificacion String @db.NVarChar(100)
+  certificacion String @db.VarChar(100)
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model Almacenamiento {
-  componente_id String @id @db.NVarChar(100)
-  tipo          String @db.NVarChar(60)
+  componente_id String @id @db.VarChar(100)
+  tipo          String @db.VarChar(60)
   capacidad     Int
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model Gabinete {
-  componente_id String @id @db.NVarChar(100)
-  formato       String @db.NVarChar(60)
+  componente_id String @id @db.VarChar(100)
+  formato       String @db.VarChar(60)
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 model Refrigeracion {
-  componente_id String @id @db.NVarChar(100)
-  tipo          String @db.NVarChar(60)
+  componente_id String @id @db.VarChar(100)
+  tipo          String @db.VarChar(60)
   tdp_soportado Int?
   componente    Componente @relation(fields: [componente_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
-
-// Modelos de la rama con autenticación y ensambles persistentes.
-// Los modelos históricos Component y sus fichas se conservan para migración de datos.
-model User {
-  id           String     @id @default(uuid()) @db.NVarChar(60)
-  email        String     @unique @db.NVarChar(254)
-  username     String     @db.NVarChar(80)
-  passwordHash String     @db.NVarChar(300)
-  totpSecret   String?    @db.NVarChar(500)
-  totpEnabled  Boolean    @default(false)
-  lastTotpStep BigInt     @default(-1)
-  createdAt    DateTime   @default(now())
-  roles        UserRole[]
-  builds       PcBuild[]
-}
-
-model Role {
-  name  String     @id @db.NVarChar(20)
-  users UserRole[]
-}
-
-model UserRole {
-  userId   String @db.NVarChar(60)
-  roleName String @db.NVarChar(20)
-  user     User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  role     Role   @relation(fields: [roleName], references: [name], onDelete: NoAction, onUpdate: NoAction)
-
-  @@id([userId, roleName])
-}
-
-model Session {
-  id        String   @id @db.NVarChar(200)
-  data      String   @db.NVarChar(Max)
-  expiresAt DateTime
-
-  @@index([expiresAt])
-}
-
-model Category {
-  id         String      @id @db.NVarChar(30)
-  name       String      @db.NVarChar(80)
-  components Component[]
-}
-
-model Component {
-  id                 String           @id @db.NVarChar(60)
-  name               String           @db.NVarChar(300)
-  category           String           @db.NVarChar(30)
-  brand              String           @db.NVarChar(300)
-  model              String           @db.NVarChar(300)
-  description        String           @db.NVarChar(2000)
-  image              String?          @db.NVarChar(2000)
-  estimatedPrice     Decimal?         @db.Decimal(18, 2)
-  priceSource        String?          @db.NVarChar(300)
-  priceReferenceDate String?          @db.NVarChar(10)
-  priceKind          String           @db.NVarChar(20)
-  currency           String           @default("COP") @db.NVarChar(3)
-  active             Boolean          @default(true)
-  revision           Int              @default(1)
-  categoryRecord     Category         @relation(fields: [category], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cpu                CpuSpec?
-  gpu                GpuSpec?
-  motherboard        MotherboardSpec?
-  ram                RamSpec?
-  storage            StorageSpec?
-  psu                PsuSpec?
-  case               CaseSpec?
-  cooler             CoolerSpec?
-
-  @@index([category, active])
-}
-
-model PcBuild {
-  id            String      @id @default(uuid()) @db.NVarChar(60)
-  ownerId       String      @db.NVarChar(60)
-  name          String      @db.NVarChar(100)
-  mode          String      @db.NVarChar(20)
-  budget        Decimal     @db.Decimal(18, 2)
-  profile       String      @db.NVarChar(30)
-  total         Decimal     @db.Decimal(18, 2)
-  compatibility String      @db.NVarChar(Max)
-  warnings      String      @db.NVarChar(Max)
-  visibility    String      @default("private") @db.NVarChar(20)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  owner         User        @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  items         BuildItem[]
-
-  @@index([ownerId, updatedAt])
-}
-
-model BuildItem {
-  buildId           String    @db.NVarChar(60)
-  componentId       String    @db.NVarChar(100)
-  category          String    @db.NVarChar(30)
-  priceSnapshot     Decimal?  @db.Decimal(18, 2)
-  componentSnapshot String    @db.NVarChar(Max)
-  build             PcBuild   @relation(fields: [buildId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  component         Componente @relation(fields: [componentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@id([buildId, componentId])
-  @@unique([buildId, category])
-}
-
-model CoolerSpec {
-  componentId String    @id @db.NVarChar(60)
-  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  type        String?   @db.NVarChar(80)
-  sockets     String?   @db.NVarChar(2000)
-  heightMm    Float?
-}
-
-model CaseSpec {
-  componentId          String    @id @db.NVarChar(60)
-  component            Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  supportedFormFactors String?   @db.NVarChar(2000)
-  maxGpuLengthMm       Float?
-  maxCoolerHeightMm    Float?
-}
-
-model RamSpec {
-  componentId  String    @id @db.NVarChar(60)
-  component    Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  memoryType   String?   @db.NVarChar(80)
-  capacityGB   Float?
-  frequencyMHz Float?
-  modules      Int?
-}
-
-model CpuSpec {
-  componentId  String    @id @db.NVarChar(60)
-  component    Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  socket       String?   @db.NVarChar(80)
-  cores        Int?
-  threads      Int?
-  frequencyGHz Float?
-  tdp          Float?
-  generation   String?   @db.NVarChar(80)
-}
-
-model StorageSpec {
-  componentId String    @id @db.NVarChar(60)
-  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  type        String?   @db.NVarChar(80)
-  capacityGB  Float?
-  interface   String?   @db.NVarChar(80)
-}
-
-model MotherboardSpec {
-  componentId          String    @id @db.NVarChar(60)
-  component            Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  socket               String?   @db.NVarChar(80)
-  chipset              String?   @db.NVarChar(80)
-  supportedGenerations String?   @db.NVarChar(2000)
-  formFactor           String?   @db.NVarChar(80)
-  memoryType           String?   @db.NVarChar(80)
-  storageInterfaces    String?   @db.NVarChar(2000)
-}
-
-model PsuSpec {
-  componentId   String    @id @db.NVarChar(60)
-  component     Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  watts         Float?
-  certification String?   @db.NVarChar(80)
-}
-
-model GpuSpec {
-  componentId String    @id @db.NVarChar(60)
-  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  vramGB      Float?
-  memoryType  String?   @db.NVarChar(80)
-  watts       Float?
-  lengthMm    Float?
 }

@@ -1,45 +1,40 @@
 services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  mysql:
+    image: mysql:8.4
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: ${SQLSERVER_PASSWORD:?Define SQLSERVER_PASSWORD en .env}
+      MYSQL_DATABASE: pcdex
+      MYSQL_USER: pcdex
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en .env.mysql}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env.mysql}
     ports:
-      - "127.0.0.1:1433:1433"
+      - "127.0.0.1:3307:3306"
     volumes:
-      - sqlserver-data:/var/opt/mssql
+      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 10s
       timeout: 5s
       retries: 20
       start_period: 30s
-  db-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    environment:
-      MSSQL_SA_PASSWORD: ${SQLSERVER_PASSWORD:?Define SQLSERVER_PASSWORD en .env}
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - >-
-        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "IF DB_ID('pcdex') IS NULL EXEC('CREATE DATABASE [pcdex]');"
   migrate:
     build: .
     environment:
-      DATABASE_URL: "sqlserver://sqlserver:1433;database=pcdex;user=sa;password={${SQLSERVER_PASSWORD:?Define SQLSERVER_PASSWORD en .env}};encrypt=true;trustServerCertificate=true"
+      DATABASE_URL: "mysql://pcdex:${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en .env.mysql}@mysql:3306/pcdex"
     depends_on:
-      db-init:
-        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
     command: ["npm", "run", "prisma:deploy"]
   api:
     build: .
     environment:
-      DATABASE_URL: "sqlserver://sqlserver:1433;database=pcdex;user=sa;password={${SQLSERVER_PASSWORD:?Define SQLSERVER_PASSWORD en .env}};encrypt=true;trustServerCertificate=true"
+      DATABASE_URL: "mysql://pcdex:${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en .env.mysql}@mysql:3306/pcdex"
       PORT: "3000"
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8081/api/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -50,5 +45,14 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:80"
 volumes:
-  sqlserver-data:
+  mysql-data:

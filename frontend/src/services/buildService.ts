@@ -13,7 +13,7 @@ export function generateBuild({items, budget}: AIContext): Build['selection'] {
    return
   }
   const category = categories[index]
-  for (const item of items.filter(item => item.category === category)) visit(index + 1, {...selection, [category]:item.id})
+  for (const item of items.filter(item => item.category === category && item.priceKnown !== false)) visit(index + 1, {...selection, [category]:item.id})
  }
  visit(0, {})
  return best ?? cheapest ?? {}

@@ -1,42 +1,44 @@
 # Backend PCdex
 
-API REST: Node.js 24, Express 5, TypeScript estricto, Prisma 6.19.0 y SQL Server 2022. Cada paquete tiene sus propias dependencias, configuración y comandos; el frontend consume la API mediante `/api`.
+API REST con Node.js, Express, Prisma 6.19 y MySQL 8.4. El catálogo y la validación de ensambles se consumen desde el frontend.
 
-## Instalación
+## Arranque con Docker
 
-```powershell
-cd backend
-Copy-Item .env.example .env
-# Edita SQLSERVER_PASSWORD y DATABASE_URL con credenciales locales reales.
-npm ci
-npm run prisma:generate
-npm run build
-npm test
-```
-
-`schema.prisma` usa el conector `sqlserver` de Prisma 6.19.0, fijado igual que Prisma Client. No mezclar esta configuración con la de Prisma 7, que utiliza adaptadores y otra configuración de conexión.
-
-## SQL Server en Docker
-
-Requiere Docker Engine y Docker Compose. Usa una contraseña propia que cumpla la política de SQL Server, no el marcador de `.env.example`.
+Inicia Docker Desktop y, desde `backend`, ejecuta:
 
 ```powershell
-docker compose up -d --build
+docker compose --env-file .env.mysql up -d --build
 ```
 
-Compose inicia SQL Server, espera su healthcheck, crea `pcdex` si no existe, aplica las migraciones versionadas y arranca la API. No importa catálogo automáticamente ni descarga OpenDB. `migrate deploy` es un proceso independiente del arranque de Express. La contraseña del volumen existente debe coincidir con la configurada.
+El archivo local `.env.mysql` contiene contraseñas generadas para MySQL. Está excluido de Git. Compose crea una base `pcdex` vacía en el volumen `mysql-data`, aplica la migración de MySQL y arranca la API y el frontend en http://localhost:8081. No importa componentes automáticamente; sigue las instrucciones de datos de abajo para cargar el catálogo. El API está en http://localhost:3000 y `/health/ready` comprueba la conexión.
 
-Para trabajar con Node fuera del contenedor:
+El volumen anterior de SQL Server y la migración anterior se conservan. MySQL empieza vacío: los datos de SQL Server no se transfieren automáticamente. La migración anterior está en `prisma/migrations-sqlserver` para referencia y no se ejecuta en MySQL.
 
-```powershell
-docker compose up -d sqlserver db-init
-npm run prisma:deploy
-npm run seed -- --dry-run
-npm run seed
-npm run dev
-```
+Para ejecutar Node fuera de Docker, ajusta `DATABASE_URL` en `.env` a `mysql://pcdex:CONTRASEÑA@localhost:3307/pcdex`, usando la contraseña de `.env.mysql`; usa caracteres alfanuméricos o codifica los caracteres especiales de la URL. Prisma lee `.env` automáticamente. Si creas el archivo desde `.env.example`, configura tus propias contraseñas. El usuario y la contraseña se aplican cuando se crea el volumen de MySQL; cambiarlos después requiere actualizar también la cuenta en la base de datos.
 
-El `DATABASE_URL` de `.env` debe apuntar a localhost; Compose usa `sqlserver` como host interno. API: http://localhost:3000. CORS permite el origen configurado, por defecto http://localhost:5173. El healthcheck `/health` comprueba el proceso; `/health/ready` comprueba la BD. SQL Server requiere una plataforma compatible (habitualmente x86-64).
+## Estructura de datos
+
+El catálogo se almacena en `Componente` y sus ocho tablas de especificaciones. `Usuario` guarda la cuenta y un hash de contraseña; `Sesion` guarda un hash del token y su vencimiento. `Favorito` enlaza usuarios con componentes, y `Ensamble` y `PiezaEnsamble` guardan las configuraciones de cada usuario. Los correos, tokens y favoritos tienen restricciones de unicidad; las claves foráneas protegen las referencias existentes.
+
+El registro e inicio de sesión usan `Usuario` y `Sesion`. El perfil y los favoritos se guardan en MySQL. Ensambles guardados y administración siguen siendo demostraciones locales. Los componentes y precios reales se cargan por separado con el importador; no se crean cuentas ni productos de ejemplo.
+
+## Autenticación
+
+`POST /api/auth/registro` recibe `username`, `email` y `password`; `POST /api/auth/login` recibe `email` y `password`. Ambos devuelven el perfil y una cookie HttpOnly con vencimiento de siete días. `GET /api/auth/sesion` recupera el perfil y `POST /api/auth/logout` invalida la sesión. Las contraseñas se protegen con scrypt y una sal aleatoria; solo se guarda el hash del token de sesión. Las peticiones de escritura comprueban el origen y registro e inicio de sesión tienen un límite básico de intentos por proceso.
+
+`PATCH /api/auth/perfil` actualiza el nombre del usuario autenticado. `GET /api/auth/favoritos` lista sus componentes; `PUT` y `DELETE /api/auth/favoritos/:id` los agregan o retiran de manera idempotente. Las operaciones usan la sesión activa y no reciben el identificador del usuario desde el cliente.
+
+`PATCH /api/auth/perfil/correo` recibe `email` y `currentPassword`; `PATCH /api/auth/perfil/contrasena` recibe `currentPassword` y `newPassword`. Ambos comprueban la contraseña actual y el origen de la solicitud. Al cambiar la contraseña se invalidan las otras sesiones, manteniendo la sesión actual. El correo se actualiza sin verificación mediante mensaje, así que el formulario solicita escribirlo dos veces. Las cuentas que solo tienen Google pueden crear primero una contraseña local tras verificar de nuevo la misma cuenta de Google; la autorización es de un solo uso, está vinculada a la sesión y vence en cinco minutos.
+
+Para desplegar con HTTPS, configura `COOKIE_SECURE=true` y `CORS_ORIGIN` con el origen autorizado; si frontend y API usan dominios diferentes, debe revisarse la política de cookies. El límite de intentos en memoria es local a cada proceso y debe sustituirse por un control compartido al operar varias instancias. Aún no hay verificación de correo ni recuperación de contraseña.
+
+### Acceso con Google
+
+En Google Cloud, configura la pantalla de consentimiento y crea un cliente OAuth de tipo aplicación web. Para Docker local, usa `http://localhost:8081` como origen y `http://localhost:8081/api/auth/google/callback` como URI de redirección autorizada. Si la aplicación está en modo de prueba, agrega la cuenta de Google a los usuarios de prueba.
+
+Agrega a `.env.mysql` los valores privados `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`. Mantén `GOOGLE_REDIRECT_URI=http://localhost:8081/api/auth/google/callback` y `FRONTEND_URL=http://localhost:8081` para el entorno Docker. Reinicia con `docker compose --env-file .env.mysql up -d --build`. Para Vite local, configura en `.env` el origen y la redirección correspondientes a `http://localhost:5173` y autorízalos en Google Cloud. En producción, usa HTTPS y las direcciones reales.
+
+El servidor comprueba la firma, audiencia, emisor y vencimiento del ID token con la biblioteca de Google, y valida `state`, PKCE, nonce y correo verificado. El identificador estable de Google se guarda en `Usuario.google_sub`. Una cuenta local con el mismo correo no se vincula automáticamente: usa su contraseña hasta que exista una función explícita de vinculación. Las cuentas creadas con Google pueden crear una contraseña local desde su perfil tras volver a autenticarse con Google.
 
 ## Datos reales y precios
 
@@ -58,7 +60,7 @@ En `prisma/seed.ts` está señalado el punto futuro `actualizarPreciosDesdeMerca
 
 Categorías canónicas: `CPU`, `GPU`, `MOTHERBOARD`, `RAM`, `PSU`, `STORAGE`, `CASE`, `COOLER`. El frontend actual usa nombres españoles; debe adaptarlos al consumir esta API.
 
-- `GET /api/componentes`: filtros `categoria`, `marca`, `precio_min`, `precio_max`, `q`, `page`, `limit`. Marca es coincidencia exacta según collation de SQL Server; `q` busca nombre o marca con contains. Paginación por defecto 1/20, máximo 100 por página. Orden estable por ID; filtro, conteo y paginación se ejecutan en BD. La respuesta es `{data, meta: {page, limit, total, pages}}`.
+- `GET /api/componentes`: filtros `categoria`, `marca`, `precio_min`, `precio_max`, `q`, `page`, `limit`. Marca es coincidencia exacta según collation de MySQL; `q` busca nombre o marca con contains. Paginación por defecto 1/20, máximo 100 por página. Orden estable por ID; filtro, conteo y paginación se ejecutan en BD. La respuesta es `{data, meta: {page, limit, total, pages}}`.
 - `GET /api/componentes/:id`: devuelve `{data}` con todos los subtipos; el no aplicable es null. Un ID desconocido devuelve 404.
 - `POST /api/builds/validar`: `{ "componente_ids": [ ...IDs reales de la BD... ] }`. Respuesta `{compatible, errores, advertencias}`. Un resultado incompatible devuelve HTTP 200 con `compatible:false`; una petición mal formada devuelve 400.
 - `POST /api/builds/generar`: `{ "presupuesto": 4000000, "uso": "gaming" }`. Usos permitidos: `gaming`, `trabajo`, `ofimatica`. No acepta sobreescrituras de datos técnicos desde el cliente. Devuelve IDs, componentes, presupuesto, total, restante, moneda, uso y validación; los importes monetarios se serializan como cadenas decimales para conservar centavos.
@@ -86,7 +88,7 @@ El cálculo eléctrico usa multiplicación entera para no redondear a favor de u
 
 ## Generación automática
 
-Consulta un snapshot de componentes cotizados en SQL Server. Busca una pieza por cada categoría, realiza poda por coste mínimo, socket, RAM, potencia y cooler, y vuelve a ejecutar las reglas completas antes de aceptar cada solución.
+Consulta un snapshot de componentes cotizados en MySQL. Busca una pieza por cada categoría, realiza poda por coste mínimo, socket, RAM, potencia y cooler, y vuelve a ejecutar las reglas completas antes de aceptar cada solución.
 
 Criterios transparentes basados en especificaciones, sin benchmarks ficticios:
 - gaming: maximiza VRAM, luego núcleos y capacidad RAM; a igualdad, menor coste.
@@ -112,15 +114,9 @@ Límites de seguridad de trabajo: máximo 10000 candidatos cotizados, número de
 
 ## Fuentes consultadas
 
-- Prisma 6 / SQL Server: https://www.prisma.io/docs/orm/v6/overview/databases/sql-server
+- Prisma 6 / MySQL: https://www.prisma.io/docs/orm/v6/overview/databases/mysql
 - OpenDB: https://github.com/buildcores/buildcores-open-db
 - Esquemas originales: https://github.com/buildcores/buildcores-open-db/tree/main/schemas
 
 La diferencia entre un esquema de especificaciones y una fuente de precios es deliberada. Conserva la atribución y licencia del conjunto de datos descargado. No se incluye ni redistribuye una descarga del catálogo en este paquete.
 
-
-## Estado de la integración (pendiente)
-
-Las rutas `/api/componentes` y `/api/components`, la administración, los ensambles y el importador utilizan `Componente`. Las tablas históricas `Component` se conservan; si contienen datos, la migración se detiene y requiere convertirlos y revisar posibles colisiones de identificadores antes de continuar.
-
-El archivo `src/seed.ts` crea únicamente categorías y roles; no inserta productos ficticios. Los datos sintéticos de la otra rama se encuentran solo en `tests/fixtures.remote.ts`. La API protegida requiere configurar `SESSION_SECRET` y `TOTP_ENCRYPTION_KEY`.

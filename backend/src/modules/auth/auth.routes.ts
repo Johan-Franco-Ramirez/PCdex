@@ -1,214 +1,260 @@
-import { Router, type Request, type RequestHandler } from 'express';
-import { rateLimit } from 'express-rate-limit';
-import { randomBytes } from 'node:crypto';
-import { prisma } from '../../config/database.js';
-import { ApiError } from '../../domain.js';
-import { object, text } from '../../validation.js';
-import { hashPassword, checkPassword, encrypt, decrypt, newTotp, totpStep } from './crypto.js';
-export async function userFor(req: Request) {
-    const userId = req.session.userId;
-    if (!userId)
-        return null;
-    const user = await prisma.user.findUnique({
-        where: {
-            id: userId
-        }, include: {
-            roles: true
-        }
-    });
-    if (!user)
-        return null;
-    return {
-        id: user.id, email: user.email, username: user.username, roles: user.roles.map(x => x.roleName), mfa: req.session.mfa === true
-    };
+import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import { Prisma } from '@prisma/client';
+import { OAuth2Client, CodeChallengeMethod } from 'google-auth-library';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import { z } from 'zod';
+import { prisma } from '../../config/prisma.js';
+import { env } from '../../config/env.js';
+import { AppError } from '../../shared/errors.js';
+import { detalleInclude, serializarComponente } from '../catalog/catalog.types.js';
+
+const scrypt = promisify(scryptCallback);
+const COOKIE = 'pcdex_session';
+const SETUP_COOKIE = 'pcdex_google_setup';
+const LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: env.COOKIE_SECURE, path: '/' };
+const setupCookieOptions = { ...cookieOptions, path:'/api/auth/perfil' };
+const email = z.string().trim().email().max(191).transform(value => value.toLowerCase());
+const loginSchema = z.object({ email, password: z.string().min(8).max(128) }).strict();
+const registerSchema = loginSchema.extend({ username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,20}$/), password: z.string().min(8).max(128).regex(/[A-Za-z]/).regex(/[0-9]/) }).strict();
+const publicUser = (user: { nombre:string; email:string; rol:string; password_hash:string|null }) => ({ username:user.nombre, email:user.email, role:user.rol, hasPassword:!!user.password_hash });
+const digest = (value:string) => createHash('sha256').update(value).digest('hex');
+async function hashPassword(password:string) {
+ const salt = randomBytes(16).toString('hex');
+ const key = await scrypt(password, salt, 64) as Buffer;
+ return `scrypt:${salt}:${key.toString('hex')}`;
 }
-export const requireUser: RequestHandler = async (req, _res, next) => {
-    if (!await userFor(req))
-        throw new ApiError(401, 'Inicia sesión para continuar.');
-    next();
-};
-export const requireAdmin: RequestHandler = async (req, _res, next) => {
-    const user = await userFor(req);
-    if (!user)
-        throw new ApiError(401, 'Inicia sesión para continuar.');
-    if (!user.roles.includes('ADMIN') || !user.mfa)
-        throw new ApiError(403, 'Se requiere un administrador con segundo factor verificado.');
-    next();
-};
-const regenerate = (req: Request) => new Promise<void>((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
-const save = (req: Request) => new Promise<void>((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-function email(value: unknown) {
-    const result = text(value, 'email', 254).toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result))
-        throw new ApiError(400, 'Correo inválido.');
-    return result;
+async function verifyPassword(password:string, stored:string) {
+ const [algorithm,salt,hex] = stored.split(':');
+ if (algorithm !== 'scrypt' || !salt || !hex || !/^[a-f0-9]{32}$/.test(salt) || !/^[a-f0-9]{128}$/.test(hex)) return false;
+ const expected = Buffer.from(hex, 'hex');
+ const actual = await scrypt(password, salt, expected.length) as Buffer;
+ return timingSafeEqual(actual, expected);
 }
-function password(value: unknown) {
-    if (typeof value !== 'string' || value.length < 12 || value.length > 128)
-        throw new ApiError(400, 'La contraseña debe tener entre 12 y 128 caracteres.');
-    return value;
+function readCookie(req:Request,name:string) {
+ const pair = (req.headers.cookie ?? '').split(';').map(part=>part.trim()).find(part=>part.startsWith(`${name}=`));
+ return pair?.slice(name.length+1);
 }
-export const auth = Router();
-auth.get('/session', async (req, res) => {
-    req.session.csrf ??= randomBytes(32).toString('hex');
-    res.json({
-        success: true, data: {
-            user: await userFor(req), csrfToken: req.session.csrf, pendingTotp: !!req.session.pendingUserId && !!req.session.pendingUntil && req.session.pendingUntil > Date.now()
-        }
-    });
-});
-auth.use(rateLimit({
-    windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false, message: {
-        success: false, error: {
-            message: 'Demasiados intentos. Inténtalo más tarde.'
-        }
-    }
-}));
-auth.post('/register', async (req, res) => {
-    const v = object(req.body);
-    if ('roles' in v || 'role' in v)
-        throw new ApiError(400, 'El registro público no admite roles.');
-    const normalized = email(v.email), username = text(v.username, 'username', 80), pass = password(v.password);
-    if (await prisma.user.findUnique({
-        where: {
-            email: normalized
-        }
-    }))
-        throw new ApiError(409, 'No se pudo registrar la cuenta con esos datos.');
-    const user = await prisma.user.create({
-        data: {
-            email: normalized, username, passwordHash: await hashPassword(pass), roles: {
-                create: {
-                    role: {
-                        connect: {
-                            name: 'USER'
-                        }
-                    }
-                }
-            }
-        }
-    });
-    await regenerate(req);
-    req.session.userId = user.id;
-    req.session.csrf = randomBytes(32).toString('hex');
-    await save(req);
-    res.status(201).json({
-        success: true, data: {
-            user: await userFor(req), csrfToken: req.session.csrf
-        }
-    });
-});
-auth.post('/login', async (req, res) => {
-    const v = object(req.body), normalized = email(v.email), pass = password(v.password);
-    const user = await prisma.user.findUnique({
-        where: {
-            email: normalized
-        }, include: {
-            roles: true
-        }
-    });
-    const fallback = '00000000000000000000000000000000:' + Buffer.alloc(64).toString('hex');
-    const valid = await checkPassword(pass, user?.passwordHash ?? fallback);
-    if (!user || !valid)
-        throw new ApiError(401, 'Correo o contraseña incorrectos.');
-    await regenerate(req);
-    req.session.csrf = randomBytes(32).toString('hex');
-    if (user.roles.some(x => x.roleName === 'ADMIN')) {
-        req.session.pendingUserId = user.id;
-        req.session.pendingUntil = Date.now() + 5 * 60000;
-        await save(req);
-        res.json({
-            success: true, data: {
-                requiresTotp: true, needsSetup: !user.totpEnabled, csrfToken: req.session.csrf
-            }
-        });
-        return;
-    }
-    req.session.userId = user.id;
-    await save(req);
-    res.json({
-        success: true, data: {
-            user: await userFor(req), csrfToken: req.session.csrf
-        }
-    });
-});
-async function pending(req: Request) {
-    if (!req.session.pendingUserId || !req.session.pendingUntil || req.session.pendingUntil < Date.now())
-        throw new ApiError(401, 'Vuelve a iniciar sesión para verificar el segundo factor.');
-    const user = await prisma.user.findUnique({
-        where: {
-            id: req.session.pendingUserId
-        }, include: {
-            roles: true
-        }
-    });
-    if (!user || !user.roles.some(x => x.roleName === 'ADMIN'))
-        throw new ApiError(403, 'Acceso administrativo requerido.');
-    return user;
+function readToken(req:Request) {
+ const value = readCookie(req,COOKIE);
+ return value && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
 }
-auth.post('/totp/setup', async (req, res) => {
-    const user = await pending(req);
-    if (user.totpEnabled)
-        throw new ApiError(409, 'El segundo factor ya está configurado.');
-    if (!user.totpSecret) {
-        const otp = newTotp(user.email);
-        await prisma.user.updateMany({
-            where: {
-                id: user.id, totpSecret: null, totpEnabled: false
-            }, data: {
-                totpSecret: encrypt(otp.secret.base32)
-            }
-        });
-    }
-    const current = await prisma.user.findUniqueOrThrow({
-        where: {
-            id: user.id
-        }
-    });
-    const secret = decrypt(current.totpSecret!);
-    const otp = newTotp(user.email);
-    otp.secret = (await import('otpauth')).Secret.fromBase32(secret);
-    res.json({
-        success: true, data: {
-            secret, uri: otp.toString()
-        }
-    });
+function requireOrigin(req:Request, _res:Response, next:NextFunction) {
+ const origin = req.get('origin');
+ const ownOrigin = `${req.protocol}://${req.get('host')}`;
+ if ((origin && origin !== ownOrigin && origin !== env.CORS_ORIGIN) || req.get('sec-fetch-site') === 'cross-site') return next(new AppError(403,'ORIGEN_INVALIDO','Origen de solicitud no permitido.'));
+ next();
+}
+const attempts = new Map<string,{count:number;until:number}>();
+function limitAttempts(req:Request, _res:Response, next:NextFunction) {
+ const now=Date.now();
+ for (const [key,value] of attempts) if(value.until<=now) attempts.delete(key);
+ const key=req.ip ?? 'unknown';
+ const entry=attempts.get(key) ?? {count:0,until:now+60_000};
+ if(entry.count>=10) return next(new AppError(429,'DEMASIADOS_INTENTOS','Demasiados intentos. Espera un minuto e inténtalo de nuevo.'));
+ entry.count++; attempts.set(key,entry); next();
+}
+function newSession() { const token=randomBytes(32).toString('hex'); return {token, token_hash:digest(token), expira_en:new Date(Date.now()+LIFETIME_MS)}; }
+function setSession(res:Response, token:string) { res.cookie(COOKIE,token,{...cookieOptions,maxAge:LIFETIME_MS}); }
+function clearSession(res:Response) { res.clearCookie(COOKIE,cookieOptions); }
+async function authenticatedUser(req:Request, res:Response) {
+ const token=readToken(req);
+ if(!token) throw new AppError(401,'SIN_SESION','No hay una sesión activa.');
+ const session=await prisma.sesion.findUnique({where:{token_hash:digest(token)},include:{usuario:true}});
+ if(!session || session.expira_en<=new Date()) { clearSession(res); throw new AppError(401,'SIN_SESION','La sesión ha terminado.'); }
+ return session.usuario;
+}
+export const authRouter=Router();
+authRouter.use((_req,res,next)=>{res.set('Cache-Control','no-store');next();});
+authRouter.post('/registro', requireOrigin, limitAttempts, async(req,res)=>{
+ const data=registerSchema.parse(req.body);
+ const password_hash=await hashPassword(data.password);
+ const session=newSession();
+ try {
+  const user=await prisma.usuario.create({data:{nombre:data.username,email:data.email,password_hash,sesiones:{create:{token_hash:session.token_hash,expira_en:session.expira_en}}}});
+  setSession(res,session.token); res.status(201).json({user:publicUser(user)});
+ } catch(error) {
+  if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==='P2002') throw new AppError(409,'CORREO_REGISTRADO','Este correo ya tiene una cuenta.');
+  throw error;
+ }
 });
-auth.post('/totp/verify', async (req, res) => {
-    const user = await pending(req);
-    if (!user.totpSecret)
-        throw new ApiError(400, 'Configura primero el segundo factor.');
-    const step = totpStep(decrypt(user.totpSecret), text(object(req.body).code, 'code', 6));
-    const result = await prisma.user.updateMany({
-        where: {
-            id: user.id, lastTotpStep: {
-                lt: step
-            }
-        }, data: {
-            lastTotpStep: step, totpEnabled: true
-        }
-    });
-    if (result.count !== 1)
-        throw new ApiError(401, 'El código ya fue utilizado; espera el siguiente.');
-    await regenerate(req);
-    req.session.userId = user.id;
-    req.session.mfa = true;
-    req.session.csrf = randomBytes(32).toString('hex');
-    await save(req);
-    res.json({
-        success: true, data: {
-            user: await userFor(req), csrfToken: req.session.csrf
-        }
-    });
+authRouter.post('/login', requireOrigin, limitAttempts, async(req,res)=>{
+ const data=loginSchema.parse(req.body);
+ const user=await prisma.usuario.findUnique({where:{email:data.email}});
+ const passwordHash=user?.password_hash ?? await hashPassword('comparacion-invalida-01');
+ const valid=await verifyPassword(data.password,passwordHash);
+ if(!user || !user.password_hash || !valid) throw new AppError(401,'CREDENCIALES_INVALIDAS','Correo o contraseña incorrectos.');
+ const session=newSession();
+ await prisma.$transaction(async tx=>{
+  const current=await tx.usuario.findUnique({where:{id:user.id},select:{password_hash:true,email:true}});
+  if(!current || current.password_hash!==user.password_hash || current.email!==data.email) throw new AppError(401,'CREDENCIALES_INVALIDAS','Correo o contraseña incorrectos.');
+  await tx.sesion.create({data:{usuario_id:user.id,token_hash:session.token_hash,expira_en:session.expira_en}});
+ },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+ setSession(res,session.token); res.json({user:publicUser(user)});
 });
-auth.post('/logout', async (req, res) => {
-    await new Promise<void>((resolve, reject) => req.session.destroy(error => error ? reject(error) : resolve()));
-    res.clearCookie('pcdex.sid', {
-        path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production'
-    });
-    res.json({
-        success: true, data: {
-            loggedOut: true
-        }
-    });
+authRouter.get('/sesion', async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ res.json({user:publicUser(user)});
+});
+authRouter.patch('/perfil',requireOrigin,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const {username}=z.object({username:z.string().trim().min(2).max(120)}).strict().parse(req.body);
+ const updated=await prisma.usuario.update({where:{id:user.id},data:{nombre:username}});
+ res.json({user:publicUser(updated)});
+});
+const currentPasswordSchema=z.string().min(1).max(128);
+async function confirmPassword(user:{password_hash:string|null},password:string) {
+ if(!user.password_hash) throw new AppError(403,'SIN_CONTRASENA','Tu cuenta usa Google y no tiene una contraseña de PCdex.');
+ if(!await verifyPassword(password,user.password_hash)) throw new AppError(401,'CONTRASENA_INCORRECTA','La contraseña actual es incorrecta.');
+ return user.password_hash;
+}
+authRouter.patch('/perfil/correo',requireOrigin,limitAttempts,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const data=z.object({email,currentPassword:currentPasswordSchema}).strict().parse(req.body);
+ const oldHash=await confirmPassword(user,data.currentPassword);
+ if(data.email===user.email) throw new AppError(400,'CORREO_SIN_CAMBIOS','El correo es igual al actual.');
+ const token=readToken(req);
+ if(!token) throw new AppError(401,'SIN_SESION','No hay una sesión activa.');
+ try {
+  const updated=await prisma.$transaction(async tx=>{
+   const session=await tx.sesion.findUnique({where:{token_hash:digest(token)}});
+   if(!session || session.usuario_id!==user.id || session.expira_en<=new Date()) throw new AppError(401,'SIN_SESION','La sesión ha terminado.');
+   const changed=await tx.usuario.updateMany({where:{id:user.id,password_hash:oldHash,email:user.email},data:{email:data.email}});
+   if(changed.count!==1) throw new AppError(409,'CUENTA_ACTUALIZADA','La cuenta cambió. Vuelve a intentarlo.');
+   return tx.usuario.findUniqueOrThrow({where:{id:user.id}});
+  },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  res.json({user:publicUser(updated)});
+ } catch(error) {
+  if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==='P2002') throw new AppError(409,'CORREO_REGISTRADO','Este correo ya tiene una cuenta.');
+  throw error;
+ }
+});
+authRouter.patch('/perfil/contrasena',requireOrigin,limitAttempts,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const data=z.object({currentPassword:currentPasswordSchema,newPassword:z.string().min(8).max(128).regex(/[A-Za-z]/).regex(/[0-9]/)}).strict().parse(req.body);
+ const oldHash=await confirmPassword(user,data.currentPassword);
+ if(data.newPassword===data.currentPassword) throw new AppError(400,'CONTRASENA_SIN_CAMBIOS','La nueva contraseña debe ser distinta.');
+ const password_hash=await hashPassword(data.newPassword);
+ const token=readToken(req);
+ if(!token) throw new AppError(401,'SIN_SESION','No hay una sesión activa.');
+ const tokenHash=digest(token);
+ await prisma.$transaction(async tx=>{
+  const session=await tx.sesion.findUnique({where:{token_hash:tokenHash}});
+  if(!session || session.usuario_id!==user.id || session.expira_en<=new Date()) throw new AppError(401,'SIN_SESION','La sesión ha terminado.');
+  const changed=await tx.usuario.updateMany({where:{id:user.id,password_hash:oldHash},data:{password_hash}});
+  if(changed.count!==1) throw new AppError(409,'CUENTA_ACTUALIZADA','La cuenta cambió. Vuelve a intentarlo.');
+  await tx.sesion.deleteMany({where:{usuario_id:user.id,token_hash:{not:tokenHash}}});
+ },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+ res.json({ok:true});
+});
+authRouter.post('/perfil/contrasena/crear',requireOrigin,limitAttempts,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const {newPassword}=z.object({newPassword:z.string().min(8).max(128).regex(/[A-Za-z]/).regex(/[0-9]/)}).strict().parse(req.body);
+ const proof=readCookie(req,SETUP_COOKIE),token=readToken(req);
+ if(!proof || !/^[a-f0-9]{64}$/.test(proof) || !token) throw new AppError(403,'VERIFICACION_REQUERIDA','Confirma tu cuenta con Google antes de crear una contraseña.');
+ const password_hash=await hashPassword(newPassword),tokenHash=digest(token);
+ const updated=await prisma.$transaction(async tx=>{
+  const session=await tx.sesion.findUnique({where:{token_hash:tokenHash}});
+  if(!session || session.usuario_id!==user.id || session.expira_en<=new Date()) throw new AppError(401,'SIN_SESION','La sesión ha terminado.');
+  const proofUsed=await tx.verificacionGoogle.deleteMany({where:{token_hash:digest(proof),sesion_id:session.id,expira_en:{gt:new Date()}}});
+  if(proofUsed.count!==1) throw new AppError(403,'VERIFICACION_REQUERIDA','La verificación ha caducado. Confirma tu cuenta con Google de nuevo.');
+  const changed=await tx.usuario.updateMany({where:{id:user.id,password_hash:null,google_sub:{not:null}},data:{password_hash}});
+  if(changed.count!==1) throw new AppError(409,'CUENTA_ACTUALIZADA','La cuenta ya tiene contraseña. Actualiza la página.');
+  await tx.sesion.deleteMany({where:{usuario_id:user.id,token_hash:{not:tokenHash}}});
+  return tx.usuario.findUniqueOrThrow({where:{id:user.id}});
+ },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+ res.clearCookie(SETUP_COOKIE,setupCookieOptions);res.json({user:publicUser(updated)});
+});
+authRouter.get('/favoritos',async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const favoritos=await prisma.favorito.findMany({where:{usuario_id:user.id},include:{componente:{include:detalleInclude}},orderBy:{creado_en:'desc'}});
+ res.json({data:favoritos.map(item=>serializarComponente(item.componente))});
+});
+authRouter.put('/favoritos/:id',requireOrigin,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const id=z.string().trim().min(1).max(100).parse(req.params.id);
+ if(!await prisma.componente.findUnique({where:{id},select:{id:true}})) throw new AppError(404,'COMPONENTE_NO_ENCONTRADO','No existe el componente solicitado.');
+ await prisma.favorito.upsert({where:{usuario_id_componente_id:{usuario_id:user.id,componente_id:id}},create:{usuario_id:user.id,componente_id:id},update:{}});
+ res.json({ok:true});
+});
+authRouter.delete('/favoritos/:id',requireOrigin,async(req,res)=>{
+ const user=await authenticatedUser(req,res);
+ const id=z.string().trim().min(1).max(100).parse(req.params.id);
+ await prisma.favorito.deleteMany({where:{usuario_id:user.id,componente_id:id}});
+ res.json({ok:true});
+});
+authRouter.post('/logout', requireOrigin, async(req,res)=>{
+ const token=readToken(req);
+ if(token) await prisma.sesion.deleteMany({where:{token_hash:digest(token)}});
+ clearSession(res); res.clearCookie(SETUP_COOKIE,setupCookieOptions); res.json({ok:true});
+});
+
+const GOOGLE_COOKIE = 'pcdex_google_oauth';
+const googleCookieOptions = { ...cookieOptions, path:'/api/auth/google' };
+const googleConfigured = () => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+const frontend = (fragment:string) => `${env.FRONTEND_URL.replace(/\/$/,'')}/#/${fragment}`;
+const googleClient = () => new OAuth2Client({clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,redirectUri:env.GOOGLE_REDIRECT_URI});
+const googleError = (res:Response, code:string) => res.redirect(303,frontend(`login?google_error=${code}`));
+authRouter.get('/google', async(req,res)=>{
+ if(!googleConfigured()) return googleError(res,'no_configurado');
+ const setup=req.query.intent==='crear_contrasena';
+ if(setup){
+  const user=await authenticatedUser(req,res);
+  if(!user.google_sub || user.password_hash) throw new AppError(403,'OPERACION_NO_DISPONIBLE','La cuenta no necesita crear una contraseña.');
+ }
+ const state=randomBytes(32).toString('hex');
+ const nonce=randomBytes(32).toString('hex');
+ const verifier=randomBytes(32).toString('base64url');
+ const challenge=createHash('sha256').update(verifier).digest('base64url');
+ res.cookie(GOOGLE_COOKIE,`${state}.${nonce}.${verifier}.${setup?'setup':'login'}`,{...googleCookieOptions,maxAge:10*60*1000});
+ const url=googleClient().generateAuthUrl({response_type:'code',scope:['openid','email','profile'],state,nonce,code_challenge:challenge,code_challenge_method:CodeChallengeMethod.S256,...(setup?{prompt:'login'}:{})});
+ return res.redirect(302,url);
+});
+authRouter.get('/google/callback', async(req,res)=>{
+ const raw=(req.headers.cookie??'').split(';').map(part=>part.trim()).find(part=>part.startsWith(`${GOOGLE_COOKIE}=`))?.slice(GOOGLE_COOKIE.length+1);
+ res.clearCookie(GOOGLE_COOKIE,googleCookieOptions);
+ if(!googleConfigured()) return googleError(res,'no_configurado');
+ const [state,nonce,verifier,mode='login']=(raw??'').split('.');
+ const failure=(code:string)=>mode==='setup'?res.redirect(303,frontend(`profile?google_setup_error=${code}`)):googleError(res,code);
+ if(!state || !nonce || !verifier || !['login','setup'].includes(mode) || !/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(nonce) || !/^[A-Za-z0-9_-]{43}$/.test(verifier) || typeof req.query.state!=='string' || req.query.state!==state) return failure('solicitud_invalida');
+ if(typeof req.query.code!=='string' || !req.query.code || req.query.code.length>4096) return failure('cancelado');
+ try {
+  const client=googleClient();
+  const {tokens}=await client.getToken({code:req.query.code,codeVerifier:verifier});
+  if(!tokens.id_token) return failure('fallo');
+  const ticket=await client.verifyIdToken({idToken:tokens.id_token,audience:env.GOOGLE_CLIENT_ID});
+  const profile=ticket.getPayload();
+  if(!profile || profile.nonce!==nonce || !profile.sub || profile.sub.length>255 || !profile.email || profile.email_verified!==true) return failure('fallo');
+  if(mode==='setup'){
+   const user=await authenticatedUser(req,res),token=readToken(req);
+   if(!token || user.google_sub!==profile.sub || user.password_hash) return failure('cuenta_distinta');
+   const proof=randomBytes(32).toString('hex');
+   await prisma.$transaction(async tx=>{
+    const session=await tx.sesion.findUnique({where:{token_hash:digest(token)}});
+    if(!session || session.usuario_id!==user.id || session.expira_en<=new Date()) throw new Error('Sesión terminada.');
+    await tx.verificacionGoogle.deleteMany({where:{OR:[{sesion_id:session.id},{expira_en:{lte:new Date()}}]}});
+    await tx.verificacionGoogle.create({data:{token_hash:digest(proof),sesion_id:session.id,expira_en:new Date(Date.now()+5*60*1000)}});
+   });
+   res.cookie(SETUP_COOKIE,proof,{...setupCookieOptions,maxAge:5*60*1000});
+   return res.redirect(303,frontend('profile?google_setup=1'));
+  }
+  const parsedEmail=email.safeParse(profile.email);
+  if(!parsedEmail.success) return failure('fallo');
+  const session=newSession();
+  const existing=await prisma.usuario.findUnique({where:{google_sub:profile.sub}});
+  if(existing) {
+   await prisma.sesion.create({data:{usuario_id:existing.id,token_hash:session.token_hash,expira_en:session.expira_en}});
+  } else {
+   if(await prisma.usuario.findUnique({where:{email:parsedEmail.data}})) return googleError(res,'cuenta_existente');
+   const name=(profile.name?.trim() || parsedEmail.data.split('@')[0] || 'Usuario').slice(0,120);
+   await prisma.usuario.create({data:{nombre:name,email:parsedEmail.data,google_sub:profile.sub,sesiones:{create:{token_hash:session.token_hash,expira_en:session.expira_en}}}});
+  }
+  setSession(res,session.token);
+  return res.redirect(303,frontend('home'));
+ } catch(error) {
+  if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==='P2002') return googleError(res,'cuenta_existente');
+  console.error('No se pudo completar el acceso con Google.');
+  return failure('fallo');
+ }
 });

@@ -13,6 +13,24 @@ function load(file) {
 }
 const {catalog}=load('src/data/components.ts'),{categories}=load('src/data/categories.ts')
 const {diagnose,buildTotal}=load('src/services/builder.ts'),{parseImport}=load('src/services/admin.ts'),{searchCatalog}=load('src/services/catalog.ts')
+const {isAdmin,navigationFor,routeForUser}=load('src/routes/navigation.ts')
+const adminUser={username:'Admin',email:'admin@example.test',role:'ADMIN'}
+const regularUser={username:'Usuario',email:'user@example.test',role:'USUARIO'}
+const legacyUser={username:'Anterior',email:'legacy@example.test'}
+assert.deepEqual(navigationFor(adminUser),[...navigationFor(regularUser),['admin','Administración']])
+const publicRoutes=['home','catalog','builder','ai','comparison','component']
+for(const profile of [null,regularUser,legacyUser]) {
+ assert.equal(isAdmin(profile),false)
+ assert.deepEqual(navigationFor(profile).map(([route])=>route),publicRoutes.filter(route=>route!=='component'))
+ for(const route of publicRoutes)assert.equal(routeForUser(route,profile),route)
+}
+for(const route of [...publicRoutes,'admin'])assert.equal(routeForUser(route,adminUser),route)
+for(const route of ['login','register'])assert.equal(routeForUser(route,adminUser),'admin')
+assert.equal(routeForUser('admin',null),'login')
+assert.equal(routeForUser('admin',regularUser),'home')
+assert.equal(routeForUser('admin',legacyUser),'home')
+assert.equal(isAdmin({...regularUser,role:'ADMINISTRADOR'}),false)
+console.log('Roles correctos: ADMIN accede a todas las pestañas y Administración; usuarios y visitantes no acceden al panel.')
 assert.equal(categories.length,8)
 assert.equal(new Set(catalog.map(i=>i.id)).size,catalog.length)
 for(const category of categories)assert.ok(catalog.some(i=>i.category===category))

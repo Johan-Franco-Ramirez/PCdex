@@ -32,7 +32,7 @@ export const aiService: AIService = { async reply(message, context) {
   return {content:`Retiré ${category}. ${summary(selection)}`,selection,budget}
  }
  if (/cambia|reemplaza|pon|mejora|barat|selecciona|agrega/.test(text) && category) {
-  const options=items.filter(i=>i.category===category)
+  const options=items.filter(i=>i.category===category&&i.priceKnown!==false)
   const named=options.filter(i=>text.includes(normalize(i.name)) || text.includes(normalize(i.id)) || (['intel','ryzen','ddr4','ddr5','4080','990','b660','b650','450','850'].some(token=>text.includes(token)&&normalize(i.name+' '+i.memory+' '+i.capacity).includes(token))))
   const candidates=(named.length?named:options.filter(i=>i.id!==current.selection[category])).sort((a,b)=> /barat|ahorr/.test(text)?a.price-b.price:b.price-a.price)
   const item=candidates[0]

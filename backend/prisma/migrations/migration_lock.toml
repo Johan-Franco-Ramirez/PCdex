@@ -1,2 +1,1 @@
-# Identificador empleado por Prisma Migrate para SQL Server.
-provider = "mssql"
+provider = "mysql"

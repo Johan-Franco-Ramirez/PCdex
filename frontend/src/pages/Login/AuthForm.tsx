@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, LockKeyhole, Mail, Shi
 import Brand from '../../components/layout/Brand'
 import type { DemoUser, AuthFields, FieldErrors } from '../../types/auth'
 import type { Route } from '../../routes/navigation'
-import { googleLoginUrl, register as registerAccount, signIn } from '../../services/auth'
+import { googleLoginUrl, register as registerAccount, requestEmailCode, signIn } from '../../services/auth'
 const initialFields: AuthFields = { username: '', email: '', password: '', confirmation: '' }
 export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' | 'register'; onSuccess: (user: DemoUser) => void; navigate: (route: Route) => void }) {
   const register = mode === 'register'
@@ -11,6 +11,8 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
   const [errors, setErrors] = useState<FieldErrors>({})
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [code, setCode] = useState('')
+  const [codeMessage, setCodeMessage] = useState('')
   const [formError, setFormError] = useState(() => {
     const code = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('google_error')
     const errors: Record<string,string> = {
@@ -24,6 +26,13 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
   })
   const inputRefs = useRef<Partial<Record<keyof AuthFields, HTMLInputElement | null>>>({})
   const score = [fields.password.length >= 8, /[A-Za-z]/.test(fields.password), /[0-9]/.test(fields.password)].filter(Boolean).length
+  async function sendCode() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())) { setFormError('Introduce un correo válido antes de solicitar el código.'); return }
+    setBusy(true); setFormError(''); setCodeMessage('')
+    try { await requestEmailCode(fields.email.trim()); setCodeMessage('Si el correo está disponible, recibirás un código. Revisa también la carpeta de spam.') }
+    catch (error) { setFormError(error instanceof Error ? error.message : 'No se pudo enviar el código.') }
+    finally { setBusy(false) }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
@@ -33,12 +42,13 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
     if (fields.password.length < 8) next.password = 'La contraseña debe tener al menos 8 caracteres.'
     else if (register && (!/[A-Za-z]/.test(fields.password) || !/[0-9]/.test(fields.password))) next.password = 'Incluye al menos una letra y un número.'
     if (register && fields.confirmation !== fields.password) next.confirmation = 'Las contraseñas no coinciden.'
+    if (register && !/^\d{6}$/.test(code.trim())) { setFormError('Introduce el código de 6 dígitos enviado a tu correo.'); return }
     setErrors(next)
     const first = Object.keys(next)[0] as keyof AuthFields | undefined
     if (first) { inputRefs.current[first]?.focus(); return }
     setBusy(true); setFormError('')
     try {
-      const result = register ? await registerAccount(fields.username.trim(), fields.email.trim(), fields.password) : await signIn(fields.email.trim(), fields.password)
+      const result = register ? await registerAccount(fields.username.trim(), fields.email.trim(), fields.password, code.trim()) : await signIn(fields.email.trim(), fields.password)
       setFields(initialFields)
       onSuccess(result.user)
     } catch (error) { setFormError(error instanceof Error ? error.message : 'No se pudo completar la solicitud.') }
@@ -52,6 +62,7 @@ export default function AuthForm({ mode, onSuccess, navigate }: { mode: 'login' 
   return <section className="auth-form-side"><a className="auth-back" href="#/home" onClick={event => { event.preventDefault(); navigate('home') }}><ArrowLeft size={15}/> Seguir explorando sin iniciar sesión</a><div className="auth-mobile-brand"><Brand/></div><div className="auth-form-container"><div className="auth-step"><span/> {register ? 'NUEVO EXPLORADOR / 02' : 'ACCESO AL SISTEMA / 01'}</div><div className="auth-form-icon">{register ? <UserRound size={24}/> : <Fingerprint size={27}/>}</div><h1>{register ? 'Tu próximo build' : 'Bienvenido de nuevo'}<br/><span>{register ? 'empieza aquí.' : 'al sistema.'}</span></h1><p className="auth-intro">{register ? 'Crea tu perfil de explorador y encuentra las piezas para tu próximo gran proyecto.' : 'Entra a tu espacio y sigue explorando el universo del hardware.'}</p><form noValidate onSubmit={submit}>
     {register && field('username', 'Nombre de usuario', 'ej. explorador_pc', 'text', 'username')}
     {field('email', 'Correo electrónico', 'tu@correo.com', 'email', 'email')}
+    {register && <><button type="button" className="profile-reauth" disabled={busy} onClick={() => void sendCode()}>Enviar código al correo</button>{codeMessage && <p role="status">{codeMessage}</p>}<div className="auth-field"><label htmlFor="verification-code">Código de verificación</label><div className="auth-input"><ShieldCheck size={17}/><input id="verification-code" type="text" inputMode="numeric" pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/\D/g,'').slice(0,6))} autoComplete="one-time-code" maxLength={6} required placeholder="000000"/></div></div></>}
     {field('password', 'Contraseña', register ? 'Crea tu contraseña' : 'Introduce tu contraseña', 'password', register ? 'new-password' : 'current-password')}
     <p className="password-hint" id="password-hint">{register ? 'Mínimo 8 caracteres, una letra y un número.' : 'Usa la contraseña de tu cuenta.'}</p>
     {register && <><div className="password-strength" aria-label={`Requisitos cumplidos: ${score} de 3`}>{[1, 2, 3].map(n => <span key={n} className={score >= n ? 'filled' : ''}/>)}</div>{field('confirmation', 'Confirmar contraseña', 'Repite tu contraseña', 'password', 'new-password')}</>}

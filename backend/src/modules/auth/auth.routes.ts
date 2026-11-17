@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { OAuth2Client, CodeChallengeMethod } from 'google-auth-library';
@@ -8,6 +8,8 @@ import { prisma } from '../../config/prisma.js';
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors.js';
 import { detalleInclude, serializarComponente } from '../catalog/catalog.types.js';
+import { enviarCodigoCorreo } from './email.js';
+import { consumeEmailCode, hashEmailCode } from './email-code.js';
 
 const scrypt = promisify(scryptCallback);
 const COOKIE = 'pcdex_session';
@@ -17,7 +19,8 @@ const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, secure: env.CO
 const setupCookieOptions = { ...cookieOptions, path:'/api/auth/perfil' };
 const email = z.string().trim().email().max(191).transform(value => value.toLowerCase());
 const loginSchema = z.object({ email, password: z.string().min(8).max(128) }).strict();
-const registerSchema = loginSchema.extend({ username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,20}$/), password: z.string().min(8).max(128).regex(/[A-Za-z]/).regex(/[0-9]/) }).strict();
+const codigoCorreo = z.string().regex(/^\d{6}$/);
+const registerSchema = loginSchema.extend({ username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,20}$/), password: z.string().min(8).max(128).regex(/[A-Za-z]/).regex(/[0-9]/), codigo:codigoCorreo }).strict();
 const publicUser = (user: { nombre:string; email:string; rol:string; password_hash:string|null }) => ({ username:user.nombre, email:user.email, role:user.rol, hasPassword:!!user.password_hash });
 const digest = (value:string) => createHash('sha256').update(value).digest('hex');
 async function hashPassword(password:string) {
@@ -67,12 +70,31 @@ async function authenticatedUser(req:Request, res:Response) {
 }
 export const authRouter=Router();
 authRouter.use((_req,res,next)=>{res.set('Cache-Control','no-store');next();});
+authRouter.post('/verificacion/correo', requireOrigin, limitAttempts, async(req,res)=>{
+ const data=z.object({email}).strict().parse(req.body);
+ const now=new Date();
+ // Nunca revela si el correo ya pertenece a una cuenta y no invalida códigos previos.
+ const existing=await prisma.usuario.findUnique({where:{email:data.email},select:{id:true}});
+ const recent=await prisma.verificacionCorreo.findFirst({where:{email:data.email,creado_en:{gt:new Date(now.getTime()-60_000)}}});
+ if(!existing && !recent){
+  const codigo=randomInt(0,1_000_000).toString().padStart(6,'0'), token_hash=hashEmailCode(data.email,codigo);
+  await prisma.verificacionCorreo.deleteMany({where:{expira_en:{lte:now}}});
+  await prisma.verificacionCorreo.create({data:{token_hash,email:data.email,expira_en:new Date(now.getTime()+15*60_000)}});
+  try { await enviarCodigoCorreo(data.email,codigo); }
+  catch(error) { await prisma.verificacionCorreo.deleteMany({where:{token_hash}}); throw error; }
+ }
+ res.status(202).json({ok:true});
+});
 authRouter.post('/registro', requireOrigin, limitAttempts, async(req,res)=>{
  const data=registerSchema.parse(req.body);
  const password_hash=await hashPassword(data.password);
  const session=newSession();
  try {
-  const user=await prisma.usuario.create({data:{nombre:data.username,email:data.email,password_hash,sesiones:{create:{token_hash:session.token_hash,expira_en:session.expira_en}}}});
+  const user=await prisma.$transaction(async tx=>{
+   if(!await consumeEmailCode(tx,data.email,data.codigo)) return null;
+   return tx.usuario.create({data:{nombre:data.username,email:data.email,password_hash,sesiones:{create:{token_hash:session.token_hash,expira_en:session.expira_en}}}});
+  },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  if(!user) throw new AppError(400,'CODIGO_INVALIDO','El código no es válido, ha caducado o superó los intentos permitidos.');
   setSession(res,session.token); res.status(201).json({user:publicUser(user)});
  } catch(error) {
   if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==='P2002') throw new AppError(409,'CORREO_REGISTRADO','Este correo ya tiene una cuenta.');
@@ -111,7 +133,7 @@ async function confirmPassword(user:{password_hash:string|null},password:string)
 }
 authRouter.patch('/perfil/correo',requireOrigin,limitAttempts,async(req,res)=>{
  const user=await authenticatedUser(req,res);
- const data=z.object({email,currentPassword:currentPasswordSchema}).strict().parse(req.body);
+ const data=z.object({email,currentPassword:currentPasswordSchema,codigo:codigoCorreo}).strict().parse(req.body);
  const oldHash=await confirmPassword(user,data.currentPassword);
  if(data.email===user.email) throw new AppError(400,'CORREO_SIN_CAMBIOS','El correo es igual al actual.');
  const token=readToken(req);
@@ -120,10 +142,12 @@ authRouter.patch('/perfil/correo',requireOrigin,limitAttempts,async(req,res)=>{
   const updated=await prisma.$transaction(async tx=>{
    const session=await tx.sesion.findUnique({where:{token_hash:digest(token)}});
    if(!session || session.usuario_id!==user.id || session.expira_en<=new Date()) throw new AppError(401,'SIN_SESION','La sesión ha terminado.');
+   if(!await consumeEmailCode(tx,data.email,data.codigo)) return null;
    const changed=await tx.usuario.updateMany({where:{id:user.id,password_hash:oldHash,email:user.email},data:{email:data.email}});
    if(changed.count!==1) throw new AppError(409,'CUENTA_ACTUALIZADA','La cuenta cambió. Vuelve a intentarlo.');
    return tx.usuario.findUniqueOrThrow({where:{id:user.id}});
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  if(!updated) throw new AppError(400,'CODIGO_INVALIDO','El código no es válido, ha caducado o superó los intentos permitidos.');
   res.json({user:publicUser(updated)});
  } catch(error) {
   if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==='P2002') throw new AppError(409,'CORREO_REGISTRADO','Este correo ya tiene una cuenta.');

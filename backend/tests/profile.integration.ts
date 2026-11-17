@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
+import { emailProof } from './email-proof.js';
 
 test('perfil y favoritos pertenecen a cada usuario y persisten', {skip:process.env.PCDEX_PROFILE_INTEGRATION!=='1'}, async()=>{
  const {app}=await import('../src/app.js'); const {prisma}=await import('../src/config/prisma.js');
@@ -12,7 +13,7 @@ test('perfil y favoritos pertenecen a cada usuario y persisten', {skip:process.e
   if(!external)server=await new Promise<Server>(resolve=>{const instance=app.listen(0,'127.0.0.1',()=>resolve(instance))});
   const addr=server?.address();if(!external&&(!addr||typeof addr==='string'))throw Error('Sin puerto de prueba.');const base=external?`${external}/api/auth`:`http://127.0.0.1:${(addr as {port:number}).port}/api/auth`;
   async function call(path:string,method='GET',cookie='',body?:object,origin?:string){return fetch(base+path,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),Origin:origin??new URL(base).origin},...(body?{body:JSON.stringify(body)}:{})})}
-  async function register(email:string){const response=await call('/registro','POST','',{username:'perfil_test',email,password:'Prueba12345'});assert.equal(response.status,201);const cookie=response.headers.get('set-cookie');assert.ok(cookie);return cookie.split(';')[0]!}
+  async function register(email:string){const codigo=await emailProof(prisma,email);const response=await call('/registro','POST','',{username:'perfil_test',email,password:'Prueba12345',codigo});assert.equal(response.status,201);const cookie=response.headers.get('set-cookie');assert.ok(cookie);return cookie.split(';')[0]!}
   assert.equal((await call('/favoritos')).status,401);
   const a=await register(emails[0]!);const b=await register(emails[1]!);
   assert.equal((await call('/perfil','PATCH',a,{username:'Nuevo Nombre'})).status,200);
@@ -28,6 +29,7 @@ test('perfil y favoritos pertenecen a cada usuario y persisten', {skip:process.e
   assert.equal((await call(path,'DELETE',a)).status,200);assert.equal(await prisma.favorito.count({where:{componente_id:componentId}}),0);
  } finally {
   await prisma.usuario.deleteMany({where:{email:{in:emails}}});await prisma.componente.deleteMany({where:{id:componentId}});
+  await prisma.verificacionCorreo.deleteMany({where:{email:{in:emails}}});
   if(server)await new Promise<void>((resolve,reject)=>server!.close(error=>error?reject(error):resolve()));await prisma.$disconnect();
  }
 });

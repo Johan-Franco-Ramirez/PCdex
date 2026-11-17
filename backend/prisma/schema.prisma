@@ -71,6 +71,18 @@ model VerificacionGoogle {
   @@index([expira_en])
 }
 
+// Los códigos pendientes no reservan una cuenta ni almacenan contraseñas.
+model VerificacionCorreo {
+  token_hash String   @id @db.VarChar(64)
+  email      String   @db.VarChar(191)
+  creado_en  DateTime @default(now())
+  expira_en  DateTime
+  intentos   Int      @default(0)
+
+  @@index([email, creado_en])
+  @@index([expira_en])
+}
+
 model Favorito {
   usuario_id    String     @db.VarChar(30)
   componente_id String     @db.VarChar(100)

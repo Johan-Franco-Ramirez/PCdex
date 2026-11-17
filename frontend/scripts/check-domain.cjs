@@ -17,11 +17,11 @@ const {isAdmin,navigationFor,routeForUser}=load('src/routes/navigation.ts')
 const adminUser={username:'Admin',email:'admin@example.test',role:'ADMIN'}
 const regularUser={username:'Usuario',email:'user@example.test',role:'USUARIO'}
 const legacyUser={username:'Anterior',email:'legacy@example.test'}
-assert.deepEqual(navigationFor(adminUser),[...navigationFor(regularUser),['admin','Administración']])
+assert.deepEqual(navigationFor(adminUser),[...navigationFor(regularUser).filter(([route])=>route!=='profile'),['admin','Administración'],['profile','Mi perfil']])
 const publicRoutes=['home','catalog','builder','ai','comparison','component']
 for(const profile of [null,regularUser,legacyUser]) {
  assert.equal(isAdmin(profile),false)
- assert.deepEqual(navigationFor(profile).map(([route])=>route),publicRoutes.filter(route=>route!=='component'))
+ assert.deepEqual(navigationFor(profile).map(([route])=>route),[...publicRoutes.filter(route=>route!=='component'),...(profile?['profile']:[])])
  for(const route of publicRoutes)assert.equal(routeForUser(route,profile),route)
 }
 for(const route of [...publicRoutes,'admin'])assert.equal(routeForUser(route,adminUser),route)

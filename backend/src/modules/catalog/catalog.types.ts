@@ -11,7 +11,15 @@ export const relacionPorCategoria = {
  PSU: 'fuentePoder', STORAGE: 'almacenamiento', CASE: 'gabinete', COOLER: 'refrigeracion',
 } as const satisfies Record<Categoria, keyof typeof detalleInclude>;
 export function esCategoria(value: string): value is Categoria { return CATEGORIAS.some(c => c === value); }
+export function enlacesTiendas(nombre: string) {
+ const query = encodeURIComponent(nombre);
+ return {
+  amazon: `https://www.amazon.com/s?k=${query}`,
+  mercadolibre: `https://listado.mercadolibre.com.co/${query}`,
+ };
+}
 export function serializarComponente(item: ComponenteDetallado) {
  return { ...item, precio: item.precio?.toFixed(2) ?? null, moneda: 'COP' as const,
-  tarjetaGrafica: item.tarjetaGrafica ? { ...item.tarjetaGrafica, vram: item.tarjetaGrafica.vram.toNumber() } : null };
+  tarjetaGrafica: item.tarjetaGrafica ? { ...item.tarjetaGrafica, vram: item.tarjetaGrafica.vram.toNumber() } : null,
+  links_tiendas: enlacesTiendas(item.nombre) };
 }

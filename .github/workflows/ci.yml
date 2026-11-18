@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 jobs:
   validar:
@@ -22,7 +23,11 @@ jobs:
         run: test -f backend/package.json
 
       - name: Verificar Docker Compose
-        run: test -f docker-compose.yml
+        env:
+          MYSQL_PASSWORD: verificacion_ci
+          MYSQL_ROOT_PASSWORD: verificacion_root_ci
+          EMAIL_CODE_SECRET: clave_de_verificacion_temporal_ci_123456
+        run: docker compose -f backend/compose.yaml config --quiet
 
       - name: Verificar Frontend
         run: test -d frontend

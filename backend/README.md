@@ -12,8 +12,6 @@ docker compose --env-file .env.mysql up -d --build
 
 El archivo local `.env.mysql` contiene contraseñas generadas para MySQL. Está excluido de Git. Compose crea una base `pcdex` vacía en el volumen `mysql-data`, aplica la migración de MySQL y arranca la API y el frontend en http://localhost:8081. No importa componentes automáticamente; sigue las instrucciones de datos de abajo para cargar el catálogo. El API está en http://localhost:3000 y `/health/ready` comprueba la conexión.
 
-El volumen anterior de SQL Server y la migración anterior se conservan. MySQL empieza vacío: los datos de SQL Server no se transfieren automáticamente. La migración anterior está en `prisma/migrations-sqlserver` para referencia y no se ejecuta en MySQL.
-
 Para ejecutar Node fuera de Docker, ajusta `DATABASE_URL` en `.env` a `mysql://pcdex:CONTRASEÑA@localhost:3307/pcdex`, usando la contraseña de `.env.mysql`; usa caracteres alfanuméricos o codifica los caracteres especiales de la URL. Prisma lee `.env` automáticamente. Si creas el archivo desde `.env.example`, configura tus propias contraseñas. El usuario y la contraseña se aplican cuando se crea el volumen de MySQL; cambiarlos después requiere actualizar también la cuenta en la base de datos.
 
 ## Estructura de datos

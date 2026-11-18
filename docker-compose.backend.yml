@@ -1,3 +1,4 @@
-# Alias conservado para no mantener una configuración de backend JSON obsoleta.
+# Entrada compatible: usa la configuración común de MySQL.
+name: pcdex-mysql
 include:
-  - docker-compose.functional.yml
+  - docker-compose.mysql.yml

@@ -1,0 +1,4 @@
+# Entrada compatible: usa la configuración común de MySQL.
+name: pcdex-mysql
+include:
+  - docker-compose.mysql.yml

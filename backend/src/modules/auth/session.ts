@@ -7,6 +7,7 @@ declare module 'express-session' {
         pendingUntil?: number;
         csrf?: string;
         mfa?: boolean;
+        googleOAuth?: { state: string; nonce: string; verifier: string; expiresAt: number };
     }
 }
 export class SqlSessionStore extends Store {

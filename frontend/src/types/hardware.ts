@@ -1,6 +1,7 @@
 export type Category = 'Procesadores' | 'Tarjetas gráficas' | 'Memoria RAM' | 'Almacenamiento' | 'Fuentes de poder' | 'Motherboards' | 'Gabinetes' | 'Refrigeración'
 export interface HardwareComponent { id: string; name: string; specs: [string, string][] }
-export interface CatalogComponent extends HardwareComponent { brand: string; category: Category; price: number; priceMissing?: boolean; summary: string; badge: string; generation?: string; socket?: string; memory?: string; watts?: number; capacity?: number; formFactor?: string }
+export interface StoreLinks { amazon?: string | null; mercadolibre?: string | null }
+export interface CatalogComponent extends HardwareComponent { brand: string; category: Category; price: number; priceMissing?: boolean; summary: string; badge: string; generation?: string; socket?: string; memory?: string; watts?: number; capacity?: number; formFactor?: string; image?: string | null; links_tiendas?: StoreLinks | null }
 export interface StoreOffer { name: string; price: number; location: string; stock: boolean }
 export interface DemoOffer extends StoreOffer { id: string; componentId: string; condition: 'Nuevo' | 'Usado' | 'Reacondicionado' }
 export interface Benchmark { name: string; value: number; percent: number }

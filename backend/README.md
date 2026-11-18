@@ -1,5 +1,9 @@
 # PCdex: primera entrega funcional
 
+> Configuración actual: utiliza `backend/.env.mysql` y `docker-compose.mysql.yml` como se explica en el [README principal](../README.md). La plantilla sin secretos es `backend/.env.example`. El resto de este documento conserva instrucciones históricas y puede mencionar archivos de entorno o SQL Server que ya no se utilizan en el flujo actual.
+
+> El esquema actual se adaptó a MySQL; las instrucciones SQL Server de este documento son históricas. Sigue [la guía de MySQL](../docs/seguimiento/migracion-mysql-implementacion.md) y sus pasos de validación antes de utilizar el entorno nuevo.
+
 ## Estado real
 
 La primera entrega manual está verificada de extremo a extremo con React/Vite, Express y Prisma/SQL Server. Pasaron las pruebas HTTP de autenticación, roles, TOTP, propiedad, snapshots y persistencia, y el recorrido en Chromium con un reinicio real del proceso del backend. La aplicación Docker está disponible localmente en http://localhost:8080.
@@ -71,7 +75,9 @@ docker compose --env-file backend/.env.functional -f docker-compose.functional.y
 docker compose --env-file backend/.env.functional -f docker-compose.functional.yml --profile app up -d
 ```
 
-Abre http://localhost:8080. Nginx sirve React y redirige /api al backend. La construcción y el arranque de ambas imágenes se verificaron. También se ejecutaron migraciones y seed desde el contenedor Linux del backend, y Chromium comprobó el catálogo público, las cookies HttpOnly y el bloqueo del panel administrativo. El compose original conserva su volumen anterior y ahora exige variables externas, sin contraseñas incrustadas; no lo utilices con claves nuevas contra un volumen antiguo sin revisar antes su configuración. `docker-compose.backend.yml` es un alias del compose funcional.
+Abre http://localhost:8080. Nginx sirve React y redirige /api al backend. Si el puerto 8080 está ocupado o reservado en Windows, define `$env:APP_HOST_PORT = '8081'` antes de ejecutar Compose y abre http://localhost:8081. La construcción y el arranque de ambas imágenes se verificaron. También se ejecutaron migraciones y seed desde el contenedor Linux del backend, y Chromium comprobó el catálogo público, las cookies HttpOnly y el bloqueo del panel administrativo. El compose original conserva su volumen anterior y ahora exige variables externas, sin contraseñas incrustadas; no lo utilices con claves nuevas contra un volumen antiguo sin revisar antes su configuración. `docker-compose.backend.yml` es un alias del compose funcional.
+
+En el perfil `app`, el backend solo se publica dentro de la red de Compose; Nginx lo alcanza como `backend:3000` y expone la aplicación en `localhost:${APP_HOST_PORT:-8080}`. Esto evita chocar con el backend local de desarrollo, que usa el puerto 3000. Para comprobar la API en Docker, usa `http://localhost:8080/api/...` (o el puerto configurado en `APP_HOST_PORT`).
 
 ## Crear administrador y configurar TOTP
 

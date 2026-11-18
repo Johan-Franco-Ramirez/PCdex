@@ -11,19 +11,25 @@
     "typecheck": "tsc -p tsconfig.check.json",
     "seed": "tsx src/seed.ts",
     "test": "tsx --test tests/unit.test.ts",
+    "test:api:v1": "tsx --test tests/api-v1.test.ts",
+    "test:auth-providers": "node --import tsx --test tests/auth-providers.test.mjs",
+    "test:auth-mysql-isolated": "node --import tsx --test tests/auth-mysql-isolated.test.mjs",
     "admin:create": "tsx scripts/create-admin.ts",
     "import:json": "tsx scripts/import-json.ts",
     "db:deploy": "prisma migrate deploy",
     "test:integration": "tsx --test tests/sql.integration.ts",
-    "test:sql": "tsx scripts/test-sql.ts",
-    "local:init": "node scripts/init-local.mjs",
-    "dev:local": "node --env-file=.env.functional --import tsx src/server.ts",
-    "admin:create:local": "node --env-file=.env.functional --import tsx scripts/create-admin.ts",
-    "test:sql:local": "node --env-file=.env.functional --import tsx scripts/test-sql.ts",
-    "db:prepare:local": "node --env-file=.env.functional --import tsx scripts/prepare-db.ts",
-    "seed:local": "node --env-file=.env.functional --import tsx src/seed.ts",
+    "test:sql": "node scripts/tests-pendientes.mjs",
+    "local:init": "node scripts/init-mysql.mjs",
+    "dev:local": "node --env-file=.env.mysql --import tsx src/server.ts",
+    "admin:create:local": "node --env-file=.env.mysql --import tsx scripts/create-admin.ts",
+    "test:sql:local": "node scripts/tests-pendientes.mjs",
+    "db:prepare:local": "node --env-file=.env.mysql --import tsx scripts/prepare-db.ts",
+    "seed:local": "node --env-file=.env.mysql --import tsx src/seed.ts",
     "db:prepare": "tsx scripts/prepare-db.ts",
-    "test:browser:local": "node --env-file=.env.functional --import tsx scripts/test-browser.ts"
+    "test:browser:local": "node scripts/tests-pendientes.mjs",
+    "test:security": "tsx --test tests/security.integration.ts",
+    "db:check:local": "node --env-file=.env.mysql --import tsx scripts/check-mysql.ts",
+    "validate:catalog:example": "tsx scripts/validar-ejemplo-catalogo.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
@@ -32,6 +38,8 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.3",
     "express-session": "^1.19.0",
+    "google-auth-library": "^11.3.4",
+    "nodemailer": "^10.5.0",
     "otpauth": "^9.6.0"
   },
   "devDependencies": {
@@ -39,8 +47,13 @@
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.19.0",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^7.0.12",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
+  },
+  "allowScripts": {
+    "prisma@6.12.0": true,
+    "@prisma/engines@6.12.0": true
   }
 }

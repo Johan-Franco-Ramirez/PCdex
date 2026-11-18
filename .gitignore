@@ -1,0 +1,41 @@
+# Dependencias y compilación
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+/backend/data/
+
+# Configuración privada; conservar las plantillas de ejemplo
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+.env.mysql
+# Registros y resultados de pruebas
+logs/
+*.log
+*-debug.log*
+*-error.log*
+playwright-report/
+test-results/
+
+# Respaldos, instaladores y archivos temporales
+backups/
+*.bak
+*.msi
+*.exe
+.pcdex-upload/
+
+# Editores y sistema operativo
+.idea/
+.vscode/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Configuración local previamente excluida
+.github/

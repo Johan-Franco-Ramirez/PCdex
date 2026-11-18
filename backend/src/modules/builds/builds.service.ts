@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+export { generarBuild } from './builds-generation.service.js';
 import { prisma } from '../../config/database.js';
 import { ApiError, type Component, type Compatibility } from '../../domain.js';
 import { object, ids, text, money, profile } from '../../validation.js';

@@ -1,0 +1,48 @@
+name: pcdex-mysql
+services:
+  pcdex-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: pcdex
+      MYSQL_USER: pcdex
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - pcdex-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+  backend:
+    profiles: [app]
+    build: ./backend
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?Define DOCKER_DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?Define SESSION_SECRET}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?Define TOTP_ENCRYPTION_KEY}
+      FRONTEND_ORIGIN: ${APP_ORIGIN:-http://localhost:8081}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8081/api/auth/google/callback}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_CODE_SECRET: ${EMAIL_CODE_SECRET:-}
+      REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-false}
+      HOST: 0.0.0.0
+      PORT: '3000'
+    depends_on:
+      pcdex-db:
+        condition: service_healthy
+  frontend:
+    profiles: [app]
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-8081}:80"
+    depends_on:
+      - backend
+volumes:
+  pcdex-mysql-data:

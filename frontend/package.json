@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node scripts/check-domain.cjs",
+    "test:store-links": "node scripts/test-store-links.mjs",
     "test:e2e": "playwright test",
     "test:docker": "node scripts/smoke-docker.mjs"
   },

@@ -5,6 +5,8 @@ import { prisma } from '../../config/database.js';
 import { ApiError } from '../../domain.js';
 import { object, text } from '../../validation.js';
 import { hashPassword, checkPassword, encrypt, decrypt, newTotp, totpStep } from './crypto.js';
+import { googleAuth } from './google.routes.js';
+import { requestEmailCode, reserveEmailCode } from './email-verification.js';
 export async function userFor(req: Request) {
     const userId = req.session.userId;
     if (!userId)
@@ -53,7 +55,8 @@ auth.get('/session', async (req, res) => {
     req.session.csrf ??= randomBytes(32).toString('hex');
     res.json({
         success: true, data: {
-            user: await userFor(req), csrfToken: req.session.csrf, pendingTotp: !!req.session.pendingUserId && !!req.session.pendingUntil && req.session.pendingUntil > Date.now()
+            user: await userFor(req), csrfToken: req.session.csrf, pendingTotp: !!req.session.pendingUserId && !!req.session.pendingUntil && req.session.pendingUntil > Date.now(),
+            emailVerificationRequired: process.env.REQUIRE_EMAIL_VERIFICATION === 'true'
         }
     });
 });
@@ -64,6 +67,14 @@ auth.use(rateLimit({
         }
     }
 }));
+auth.use(googleAuth);
+auth.post('/verification/email', async (req, res) => {
+    if (process.env.REQUIRE_EMAIL_VERIFICATION !== 'true')
+        throw new ApiError(503, 'La verificación por correo aún no está activada.');
+    const normalized = email(object(req.body).email);
+    await requestEmailCode(normalized);
+    res.status(202).json({ success: true, data: { message: 'Si el correo puede registrarse, recibirás un código.' } });
+});
 auth.post('/register', async (req, res) => {
     const v = object(req.body);
     if ('roles' in v || 'role' in v)
@@ -75,19 +86,24 @@ auth.post('/register', async (req, res) => {
         }
     }))
         throw new ApiError(409, 'No se pudo registrar la cuenta con esos datos.');
-    const user = await prisma.user.create({
-        data: {
-            email: normalized, username, passwordHash: await hashPassword(pass), roles: {
-                create: {
-                    role: {
-                        connect: {
-                            name: 'USER'
-                        }
-                    }
-                }
-            }
-        }
-    });
+    const passwordHash = await hashPassword(pass);
+    const userData = {
+        email: normalized, username, passwordHash,
+        roles: { create: { role: { connect: { name: 'USER' } } } }
+    };
+    let user;
+    if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true') {
+        const challengeHash = await reserveEmailCode(normalized, v.codigo);
+        user = await prisma.$transaction(async tx => {
+            const consumed = await tx.emailVerification.deleteMany({
+                where: { email: normalized, codeHash: challengeHash, expiresAt: { gt: new Date() }, attempts: { lte: 5 } }
+            });
+            if (consumed.count !== 1) throw new ApiError(400, 'El código ya fue utilizado o venció.');
+            return tx.user.create({ data: userData });
+        });
+    } else {
+        user = await prisma.user.create({ data: userData });
+    }
     await regenerate(req);
     req.session.userId = user.id;
     req.session.csrf = randomBytes(32).toString('hex');

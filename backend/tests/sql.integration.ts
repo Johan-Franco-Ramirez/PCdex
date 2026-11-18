@@ -29,9 +29,9 @@ import { seed } from '../src/seed.js';
 import { hashPassword } from '../src/modules/auth/crypto.js';
 import { seedData } from '../src/seed-data.js';
 import * as OTPAuth from 'otpauth';
-if (!process.env.TEST_DATABASE_URL || process.env.DATABASE_URL !== process.env.TEST_DATABASE_URL || !process.env.DATABASE_URL.includes('database=pcdex_test_'))
+if (!process.env.TEST_DATABASE_URL || process.env.DATABASE_URL !== process.env.TEST_DATABASE_URL || !/^\/pcdex_test_[a-zA-Z0-9_]+$/.test(new URL(process.env.DATABASE_URL).pathname))
     throw new Error('Ejecuta npm run test:sql para aislar la base de datos.');
-test('recorrido SQL Server: sesiones, MFA, catálogo, propiedad, snapshots y reinicio', async () => {
+test('recorrido MySQL: sesiones, MFA, catálogo, propiedad, snapshots y reinicio', async () => {
     await seed();
     assert.equal((await seed()).added, 0);
     assert.equal(await prisma.component.count(), 40);

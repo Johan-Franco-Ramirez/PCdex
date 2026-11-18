@@ -12,14 +12,21 @@ import { sessions } from './modules/auth/session.js';
 import { auth, requireAdmin, requireUser, userFor } from './modules/auth/auth.routes.js';
 import * as catalog from './modules/catalog/catalog.repository.js';
 import * as builds from './modules/builds/builds.service.js';
+import { securityHeaders, apiRateLimiter } from './middlewares/security.js';
+import { catalogRoutes } from './modules/catalog/catalog.routes.js';
+import { compatibilityRoutes } from './modules/compatibility/compatibility.routes.js';
+import { buildsRoutes } from './modules/builds/builds.routes.js';
+import { catalogResponse } from './modules/catalog/catalog.presenter.js';
 export function createApp() {
     const app = express();
     app.disable('x-powered-by');
     if (process.env.TRUST_PROXY === '1')
         app.set('trust proxy', 1);
+    app.use(securityHeaders);
     app.use(cors({
         origin: frontendOrigin, credentials: true
     }));
+    app.use('/api', apiRateLimiter());
     app.use(express.json({
         limit: '128kb'
     }));
@@ -38,10 +45,13 @@ export function createApp() {
     const ok = (data: unknown) => ({
         success: true, data
     });
+    app.use('/api/v1/components', catalogRoutes);
+    app.use('/api/v1/compatibility', compatibilityRoutes);
+    app.use('/api/v1/builds', buildsRoutes);
     app.get('/health', async (_req, res) => {
         await prisma.$queryRaw `SELECT 1`;
         res.json(ok({
-            project: 'PCdex API', database: 'SQL Server', ready: true
+            project: 'PCdex API', database: 'MySQL', ready: true
         }));
     });
     app.use('/api/auth', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, auth);
@@ -60,17 +70,17 @@ export function createApp() {
             throw new ApiError(400, 'active debe ser true o false.');
         const all = (await catalog.listComponents()).filter(x => x.active === (req.query.active !== 'false') && (!c || x.category === c) && (!q || `${x.name} ${x.brand} ${x.model}`.toLowerCase().includes(q)));
         res.json({
-            ...ok(all.slice((page - 1) * limit, page * limit)), meta: {
+            ...ok(all.slice((page - 1) * limit, page * limit).map(catalogResponse)), meta: {
                 total: all.length, page, limit
             }
         });
     });
-    app.get('/api/components/:id', async (req, res) => res.json(ok(await catalog.getComponent(validate.id(req.params.id)))));
+    app.get('/api/components/:id', async (req, res) => res.json(ok(catalogResponse(await catalog.getComponent(validate.id(req.params.id))))));
     app.post('/api/components', requireAdmin, async (req, res) => {
         const body = validate.object(req.body);
-        res.status(201).json(ok(await catalog.createComponent(validate.component(body, body.id === undefined ? randomUUID() : validate.id(body.id)))));
+        res.status(201).json(ok(catalogResponse(await catalog.createComponent(validate.component(body, body.id === undefined ? randomUUID() : validate.id(body.id))))));
     });
-    app.put('/api/components/:id', requireAdmin, async (req, res) => res.json(ok(await catalog.updateComponent(validate.component(req.body, validate.id(req.params.id))))));
+    app.put('/api/components/:id', requireAdmin, async (req, res) => res.json(ok(catalogResponse(await catalog.updateComponent(validate.component(req.body, validate.id(req.params.id)))))));
     app.delete('/api/components/:id', requireAdmin, async (req, res) => res.json(ok(await catalog.deactivateComponent(validate.id(req.params.id)))));
     app.use('/api/builds', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, requireUser);
     app.get('/api/builds', async (req, res) => res.json(ok(await builds.listBuilds((await userFor(req))!.id))));
@@ -118,7 +128,7 @@ export function createApp() {
             console.error(error instanceof Error ? error.name : 'InternalError');
         res.status(status).json({
             success: false, error: {
-                message: status === 500 ? 'No se pudo completar la operación. Comprueba la conexión con SQL Server.' : status === 409 ? 'Conflicto: el registro ya existe.' : error instanceof Error ? error.message : 'Solicitud inválida.'
+                message: status === 500 ? 'No se pudo completar la operación. Comprueba la conexión con la base de datos.' : status === 409 ? 'Conflicto: el registro ya existe.' : error instanceof Error ? error.message : 'Solicitud inválida.'
             }
         });
     };

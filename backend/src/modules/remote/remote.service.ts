@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma.js';
 import { AppError } from '../../shared/errors.js';
-import { detalleInclude, type Categoria, type ComponenteDetallado } from '../catalog/catalog.types.js';
+import { detalleInclude, enlacesTiendas, type Categoria, type ComponenteDetallado } from '../catalog/catalog.types.js';
 import { evaluarComponentes } from '../compatibility/compatibility.rules.js';
 const categories=['cpu','gpu','motherboard','ram','storage','psu','case','cooler'] as const;
 const canonical:Record<(typeof categories)[number],Categoria>={cpu:'CPU',gpu:'GPU',motherboard:'MOTHERBOARD',ram:'RAM',storage:'STORAGE',psu:'PSU',case:'CASE',cooler:'COOLER'};
@@ -19,7 +19,7 @@ export function view(item:ComponenteDetallado){
  if(item.fuentePoder)Object.assign(specs,{watts:item.fuentePoder.vatios,certification:item.fuentePoder.certificacion});
  if(item.gabinete)Object.assign(specs,{formFactor:item.gabinete.formato});
  if(item.refrigeracion)Object.assign(specs,{type:item.refrigeracion.tipo,...(item.refrigeracion.tdp_soportado===null?{}:{supportedTdp:item.refrigeracion.tdp_soportado})});
- return {id:item.id,name:item.nombre,brand:item.marca,model:item.nombre,category,description:item.nombre,estimatedPrice:item.precio===null?null:item.precio.toNumber(),priceSource:null,priceReferenceDate:null,priceKind:'ESTIMATED',currency:'COP',active:true,specs};
+ return {id:item.id,name:item.nombre,brand:item.marca,model:item.nombre,category,description:item.nombre,estimatedPrice:item.precio===null?null:item.precio.toNumber(),priceSource:null,priceReferenceDate:null,priceKind:'ESTIMATED',currency:'COP',active:true,specs,links_tiendas:enlacesTiendas(item.nombre)};
 }
 export const querySchema=z.object({category:z.enum(categories).optional(),q:z.string().trim().min(1).max(150).optional(),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(50),active:z.enum(['true','false']).optional()}).strict();
 export async function list(input:unknown){
